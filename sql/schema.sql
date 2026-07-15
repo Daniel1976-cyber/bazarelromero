@@ -24,7 +24,8 @@ create table if not exists exchange_rates (
 -- vez que arranca la tienda, si está vacía.
 create table if not exists categorias (
   id text primary key,       -- slug generado del nombre, ej: "alimentos"
-  nombre text not null
+  nombre text not null,
+  visible boolean not null default true  -- false = oculta en la tienda pública
 );
 
 -- Bucket de imágenes: créalo desde Dashboard -> Storage -> New bucket
@@ -79,6 +80,10 @@ insert into categorias (id, nombre)
 select distinct categoria, categoria from productos
 where categoria is not null
 on conflict (id) do nothing;
+
+-- Agrega la columna "visible" si la tabla ya existía antes de esta versión.
+-- Las categorías existentes quedan visibles por defecto.
+alter table categorias add column if not exists visible boolean not null default true;
 
 -- Recordatorio: las escrituras (insert/update/delete) del panel admin DEBEN
 -- pasar por rutas del backend que usen supabaseService (SUPABASE_SERVICE_ROLE),
