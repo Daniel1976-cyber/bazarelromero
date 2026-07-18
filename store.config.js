@@ -29,16 +29,16 @@ function parseCategories(raw) {
 }
 
 export const storeConfig = {
-  nombre: process.env.STORE_NAME || 'Mi Tienda',
-  slug: process.env.STORE_SLUG || 'mi-tienda',
-  slogan: process.env.STORE_SLOGAN || '',
-  logo: process.env.STORE_LOGO_PATH || '/logo.png',
+  nombre: process.env.STORE_NAME || 'Bazar El Romero',
+  slug: process.env.STORE_SLUG || 'Bazar El Romero',
+  slogan: process.env.STORE_SLOGAN || 'Plantas medicinales,aromáticas y ornamentales. Artículos del hogar.',
+  logo: process.env.STORE_LOGO_PATH || '/logo.jpg',
   colores: {
     primario: process.env.STORE_COLOR_PRIMARY || '#0f766e',
     acento: process.env.STORE_COLOR_ACCENT || '#f59e0b',
   },
-  whatsapp: process.env.STORE_WHATSAPP || '',
-  email: process.env.STORE_EMAIL || '',
+  whatsapp: process.env.STORE_WHATSAPP || '52846257',
+  email: process.env.STORE_EMAIL || 'elromerobazar@gmail.com',
   facebook: process.env.STORE_FACEBOOK || '',
   direccion: process.env.STORE_ADDRESS || '',
   horario: process.env.STORE_SCHEDULE || '',
@@ -47,7 +47,7 @@ export const storeConfig = {
   // Para tiendas que NO manejan USD en absoluto: el precio que cargan en
   // el admin ya ES el valor en CUP directo, sin tasa ni conversión.
   // Es excluyente con mostrarTasaCambio (no tiene sentido activar las dos).
-  soloCup: (process.env.STORE_SOLO_CUP || 'false').toLowerCase() === 'true',
+  soloCup: (process.env.STORE_SOLO_CUP || 'true').toLowerCase() === 'true',
 
   // Solo se usa UNA vez, para poblar la tabla `categorias` de Supabase la
   // primera vez que la tienda arranca y esa tabla está vacía. Después de eso,
