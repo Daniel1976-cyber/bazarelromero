@@ -95,14 +95,14 @@ async function cargarCategorias() {
         categorias = sembradas;
         console.log(`[${storeConfig.nombre}] Categorías sembradas desde STORE_CATEGORIES (${categorias.length})`);
       } else {
-        categorias = storeConfig.categoriasIniciales;
+        categorias = storeConfig.categoriasIniciales.map((c) => ({ ...c, activa: true }));
       }
     } else {
       categorias = data;
     }
   } catch (e) {
     console.error(`[${storeConfig.nombre}] Error al cargar categorías desde Supabase:`, e.message);
-    categorias = storeConfig.categoriasIniciales || [];
+    categorias = (storeConfig.categoriasIniciales || []).map((c) => ({ ...c, activa: true }));
   }
 }
 let categoriasListas = cargarCategorias();
@@ -119,7 +119,18 @@ function slugify(texto) {
 // ─── Config pública (la usan index.html / search.html / admin.html) ──────
 app.get('/api/config', async (req, res) => {
   await categoriasListas;
-  res.json({ ...storeConfig.public(), categorias });
+  // El cliente solo ve las categorías activas — las ocultas no aparecen
+  // en los filtros ni en el buscador, para no saturar el menú con
+  // categorías que la tienda no usa.
+  res.json({ ...storeConfig.public(), categorias: categorias.filter((c) => c.activa) });
+});
+
+// Admin: TODAS las categorías (activas y ocultas), para poder gestionarlas
+// y para que el formulario de producto siga permitiendo elegir una
+// categoría oculta si hace falta reasignar algo.
+app.get('/api/admin/categories', verifyAdmin, async (req, res) => {
+  await categoriasListas;
+  res.json(categorias);
 });
 
 // ─── Catálogo ──────────────────────────────────────────────────────────────
@@ -303,6 +314,31 @@ app.post('/api/admin/categories', verifyAdmin, async (req, res) => {
 
   categorias.push(data[0]);
   categorias.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  res.json(data[0]);
+});
+
+// Ocultar/mostrar una categoría — no se borra, igual que con los productos.
+app.put('/api/admin/categories/:id', verifyAdmin, async (req, res) => {
+  if (!supabaseService) {
+    return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado en esta tienda' });
+  }
+  await categoriasListas;
+  const { id } = req.params;
+  const { activa } = req.body;
+  if (typeof activa !== 'boolean') {
+    return res.status(400).json({ error: 'Falta el campo "activa" (true/false)' });
+  }
+
+  const { data, error } = await supabaseService
+    .from('categorias')
+    .update({ activa })
+    .eq('id', id)
+    .select();
+  if (error) return res.status(500).json({ error: error.message });
+  if (!data || !data.length) return res.status(404).json({ error: 'Categoría no encontrada' });
+
+  const idx = categorias.findIndex((c) => c.id === id);
+  if (idx !== -1) categorias[idx] = data[0];
   res.json(data[0]);
 });
 
