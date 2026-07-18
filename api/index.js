@@ -40,8 +40,14 @@ async function cargarProductos() {
     productos = data.map((p) => ({
       id: p.id,
       nombre: p.nombre,
-      precio_usd: p.precio,
-      precio_cup: storeConfig.mostrarTasaCambio ? Math.round(p.precio * rate) : null,
+      // Si la tienda opera SOLO en CUP, "precio" ya es el valor en CUP
+      // directo (no hay USD, no hay tasa que aplicar). Si maneja USD+CUP,
+      // "precio" es USD y se calcula el CUP con la tasa. Si es solo USD,
+      // precio_cup queda en null.
+      precio_usd: storeConfig.soloCup ? null : p.precio,
+      precio_cup: storeConfig.soloCup
+        ? p.precio
+        : (storeConfig.mostrarTasaCambio ? Math.round(p.precio * rate) : null),
       categoria: p.categoria,
       subcategoria: p.subcategoria || 'General',
       disponible: p.disponible,
@@ -92,12 +98,11 @@ async function cargarCategorias() {
         categorias = storeConfig.categoriasIniciales;
       }
     } else {
-      // Aseguramos que las categorías sin columna "visible" se traten como visibles
-      categorias = data.map((c) => ({ visible: true, ...c }));
+      categorias = data;
     }
   } catch (e) {
     console.error(`[${storeConfig.nombre}] Error al cargar categorías desde Supabase:`, e.message);
-    categorias = (storeConfig.categoriasIniciales || []).map((c) => ({ visible: true, ...c }));
+    categorias = storeConfig.categoriasIniciales || [];
   }
 }
 let categoriasListas = cargarCategorias();
@@ -114,15 +119,7 @@ function slugify(texto) {
 // ─── Config pública (la usan index.html / search.html / admin.html) ──────
 app.get('/api/config', async (req, res) => {
   await categoriasListas;
-  // Solo devuelve categorías visibles al público; el admin pide /api/admin/categories
-  const categoriasVisibles = categorias.filter((c) => c.visible !== false);
-  res.json({ ...storeConfig.public(), categorias: categoriasVisibles });
-});
-
-// Admin: devuelve TODAS las categorías (incluyendo ocultas)
-app.get('/api/admin/categories', verifyAdmin, async (req, res) => {
-  await categoriasListas;
-  res.json(categorias);
+  res.json({ ...storeConfig.public(), categorias });
 });
 
 // ─── Catálogo ──────────────────────────────────────────────────────────────
@@ -300,66 +297,13 @@ app.post('/api/admin/categories', verifyAdmin, async (req, res) => {
 
   const { data, error } = await supabaseService
     .from('categorias')
-    .insert([{ id, nombre: nombre.trim(), visible: true }])
+    .insert([{ id, nombre: nombre.trim() }])
     .select();
   if (error) return res.status(500).json({ error: error.message });
 
-  categorias.push({ visible: true, ...data[0] });
+  categorias.push(data[0]);
   categorias.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   res.json(data[0]);
-});
-
-// Renombrar categoría
-app.put('/api/admin/categories/:id', verifyAdmin, async (req, res) => {
-  if (!supabaseService) {
-    return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado en esta tienda' });
-  }
-  await categoriasListas;
-  const { id } = req.params;
-  const { nombre } = req.body;
-  if (!nombre || !nombre.trim()) {
-    return res.status(400).json({ error: 'El nuevo nombre es obligatorio' });
-  }
-
-  const idx = categorias.findIndex((c) => c.id === id);
-  if (idx === -1) return res.status(404).json({ error: 'Categoría no encontrada' });
-
-  const { data, error } = await supabaseService
-    .from('categorias')
-    .update({ nombre: nombre.trim() })
-    .eq('id', id)
-    .select();
-  if (error) return res.status(500).json({ error: error.message });
-
-  categorias[idx] = { ...categorias[idx], nombre: nombre.trim() };
-  categorias.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  res.json(categorias[idx]);
-});
-
-// Ocultar / mostrar categoría (toggle campo "visible")
-app.patch('/api/admin/categories/:id/visible', verifyAdmin, async (req, res) => {
-  if (!supabaseService) {
-    return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado en esta tienda' });
-  }
-  await categoriasListas;
-  const { id } = req.params;
-  const { visible } = req.body;
-  if (typeof visible !== 'boolean') {
-    return res.status(400).json({ error: '"visible" debe ser true o false' });
-  }
-
-  const idx = categorias.findIndex((c) => c.id === id);
-  if (idx === -1) return res.status(404).json({ error: 'Categoría no encontrada' });
-
-  const { data, error } = await supabaseService
-    .from('categorias')
-    .update({ visible })
-    .eq('id', id)
-    .select();
-  if (error) return res.status(500).json({ error: error.message });
-
-  categorias[idx] = { ...categorias[idx], visible };
-  res.json(categorias[idx]);
 });
 
 // ─── Archivos estáticos ────────────────────────────────────────────────────

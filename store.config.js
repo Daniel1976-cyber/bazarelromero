@@ -29,10 +29,10 @@ function parseCategories(raw) {
 }
 
 export const storeConfig = {
-  nombre: process.env.STORE_NAME || 'Bazar El Romero',
+  nombre: process.env.STORE_NAME || 'Mi Tienda',
   slug: process.env.STORE_SLUG || 'mi-tienda',
-  slogan: process.env.STORE_SLOGAN || 'Plantas medicinales,aromáticas y ornamentales. Artículos del hogar',
-  logo: process.env.STORE_LOGO_PATH || '/logo.jpg',
+  slogan: process.env.STORE_SLOGAN || '',
+  logo: process.env.STORE_LOGO_PATH || '/logo.png',
   colores: {
     primario: process.env.STORE_COLOR_PRIMARY || '#0f766e',
     acento: process.env.STORE_COLOR_ACCENT || '#f59e0b',
@@ -43,6 +43,11 @@ export const storeConfig = {
   direccion: process.env.STORE_ADDRESS || '',
   horario: process.env.STORE_SCHEDULE || '',
   mostrarTasaCambio: (process.env.STORE_SHOW_EXCHANGE_RATE || 'false').toLowerCase() === 'true',
+
+  // Para tiendas que NO manejan USD en absoluto: el precio que cargan en
+  // el admin ya ES el valor en CUP directo, sin tasa ni conversión.
+  // Es excluyente con mostrarTasaCambio (no tiene sentido activar las dos).
+  soloCup: (process.env.STORE_SOLO_CUP || 'false').toLowerCase() === 'true',
 
   // Solo se usa UNA vez, para poblar la tabla `categorias` de Supabase la
   // primera vez que la tienda arranca y esa tabla está vacía. Después de eso,
@@ -79,6 +84,7 @@ export const storeConfig = {
       direccion: this.direccion,
       horario: this.horario,
       mostrarTasaCambio: this.mostrarTasaCambio,
+      soloCup: this.soloCup,
     };
   },
 };

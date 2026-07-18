@@ -86,35 +86,6 @@
     .post-save { display: none; gap: .5rem; margin-top: .75rem; }
     .post-save button { flex: 1; }
     .post-save .secundario { background: white; color: var(--color-primario); border: 1px solid var(--color-primario); }
-
-    /* Gestión de categorías */
-    .cat-row {
-      display: flex; align-items: center; gap: .6rem; background: white;
-      border: 1px solid #e5e7eb; border-radius: .5rem; padding: .6rem .8rem; margin-bottom: .5rem;
-    }
-    .cat-row .cat-nombre { flex: 1; font-weight: 600; }
-    .cat-row .cat-nombre.oculta { color: #94a3b8; text-decoration: line-through; }
-    .cat-row .badge-oculta { font-size: .7rem; padding: .15rem .5rem; border-radius: 999px;
-      background: #f1f5f9; color: #64748b; font-weight: 600; }
-    .cat-row .acciones { display: flex; gap: .4rem; flex-shrink: 0; }
-    .cat-row .acciones button {
-      font-size: .8rem; padding: .35rem .6rem; border-radius: .4rem; border: 1px solid #cbd5e1;
-      background: white; cursor: pointer; color: #1f2937; font-weight: 600;
-    }
-    .cat-row .acciones .btn-renombrar { border-color: var(--color-primario); color: var(--color-primario); }
-    .cat-row .acciones .btn-renombrar:hover { background: var(--color-primario); color: white; }
-    .cat-row .acciones .btn-ocultar-cat { border-color: #dc2626; color: #dc2626; }
-    .cat-row .acciones .btn-ocultar-cat:hover { background: #dc2626; color: white; }
-    .cat-row .acciones .btn-mostrar-cat { border-color: #16a34a; color: #16a34a; }
-    .cat-row .acciones .btn-mostrar-cat:hover { background: #16a34a; color: white; }
-
-    .cat-edit-row {
-      display: none; gap: .5rem; margin-top: .4rem; align-items: center;
-    }
-    .cat-edit-row input { flex: 1; margin: 0; padding: .4rem .6rem; border: 1px solid #cbd5e1; border-radius: .4rem; }
-    .cat-edit-row button { font-size: .8rem; padding: .35rem .6rem; border-radius: .4rem; border: none; cursor: pointer; font-weight: 600; }
-    .cat-edit-row .btn-guardar-nombre { background: var(--color-primario); color: white; }
-    .cat-edit-row .btn-cancelar-nombre { background: white; color: #64748b; border: 1px solid #cbd5e1; }
   </style>
 </head>
 <body>
@@ -156,10 +127,6 @@
       <button class="accion-btn" onclick="abrirListaProductos()">
         ✏️ Editar productos
         <span class="desc">Edita datos o cambia si el producto se ve al cliente</span>
-      </button>
-      <button class="accion-btn" onclick="abrirGestionCategorias()">
-        🗂️ Gestionar categorías
-        <span class="desc">Renombra u oculta categorías del catálogo</span>
       </button>
     </div>
   </div>
@@ -203,16 +170,6 @@
         <button data-filtro="no-disponibles" onclick="filtrarLista('no-disponibles')">No disponibles</button>
       </div>
       <div id="listaContenedor">Cargando...</div>
-    </div>
-  </div>
-
-  <!-- GESTIÓN DE CATEGORÍAS -->
-  <div id="gestionCategorias" class="view">
-    <div class="panel" style="max-width: 600px;">
-      <h3>Gestionar categorías</h3>
-      <p style="font-size:.85rem; color:#64748b; margin-top:-.25rem;">Puedes renombrar o mostrar/ocultar cada categoría. Las categorías ocultas no aparecen en la tienda.</p>
-      <div id="catListaContenedor">Cargando...</div>
-      <p id="catMsg" style="font-size:.85rem; margin-top:.5rem;"></p>
     </div>
   </div>
 
@@ -368,7 +325,7 @@
           <img src="${p.img}" alt="${p.nombre}" />
           <div class="info">
             <div class="nombre">${p.nombre}</div>
-            <div class="meta">$${StoreApp.formatMoney(p.precio_usd)} · ${p.categoria}
+            <div class="meta">${StoreApp.formatPrecio(p.precio_usd, p.precio_cup)} · ${p.categoria}
               <span class="badge ${p.disponible ? 'si' : 'no'}">${p.disponible ? 'Disponible' : 'No disponible'}</span>
             </div>
           </div>
@@ -411,7 +368,7 @@
         if (!p) return;
         document.getElementById('formTitulo').textContent = `Editando: ${p.nombre}`;
         document.getElementById('nombre').value = p.nombre;
-        document.getElementById('precio').value = p.precio_usd;
+        document.getElementById('precio').value = config.soloCup ? p.precio_cup : p.precio_usd;
         document.getElementById('descripcion').value = p.descripcion || '';
         document.getElementById('categoria').value = p.categoria;
         document.getElementById('disponible').checked = !!p.disponible;
@@ -589,113 +546,10 @@
       msg.textContent = `Categoría "${data.nombre}" creada ✅`;
     }
 
-    // ─── Gestión de categorías ────────────────────────────────────────────
-    let categoriasAdmin = [];
-
-    async function abrirGestionCategorias() {
-      showView('gestionCategorias');
-      document.getElementById('catMsg').textContent = '';
-      document.getElementById('catListaContenedor').textContent = 'Cargando...';
-      const res = await fetch('/api/admin/categories', { headers: { 'x-admin-token': token } });
-      if (res.status === 401) { logout(); return; }
-      categoriasAdmin = await res.json();
-      renderCategorias();
-    }
-
-    function renderCategorias() {
-      const contenedor = document.getElementById('catListaContenedor');
-      if (!categoriasAdmin.length) {
-        contenedor.innerHTML = '<p>No hay categorías.</p>';
-        return;
-      }
-      contenedor.innerHTML = categoriasAdmin.map((c) => `
-        <div class="cat-row" id="catrow-${c.id}">
-          <div style="flex:1; min-width:0;">
-            <div class="cat-nombre ${c.visible === false ? 'oculta' : ''}">
-              ${c.nombre}
-              ${c.visible === false ? '<span class="badge-oculta">Oculta</span>' : ''}
-            </div>
-            <!-- fila de edición (oculta por defecto) -->
-            <div class="cat-edit-row" id="catedit-${c.id}">
-              <input type="text" value="${c.nombre}" id="catinput-${c.id}" />
-              <button class="btn-guardar-nombre" onclick="guardarNombreCategoria('${c.id}')">Guardar</button>
-              <button class="btn-cancelar-nombre" onclick="cancelarEdicionCategoria('${c.id}')">Cancelar</button>
-            </div>
-          </div>
-          <div class="acciones">
-            <button class="btn-renombrar" onclick="iniciarEdicionCategoria('${c.id}')">✏️ Renombrar</button>
-            ${c.visible === false
-              ? `<button class="btn-mostrar-cat" onclick="toggleVisibleCategoria('${c.id}', true)">👁 Mostrar</button>`
-              : `<button class="btn-ocultar-cat" onclick="toggleVisibleCategoria('${c.id}', false)">🚫 Ocultar</button>`
-            }
-          </div>
-        </div>
-      `).join('');
-    }
-
-    function iniciarEdicionCategoria(id) {
-      document.getElementById(`catedit-${id}`).style.display = 'flex';
-      document.getElementById(`catinput-${id}`).focus();
-    }
-
-    function cancelarEdicionCategoria(id) {
-      document.getElementById(`catedit-${id}`).style.display = 'none';
-      // restaurar valor original
-      const cat = categoriasAdmin.find((c) => c.id === id);
-      if (cat) document.getElementById(`catinput-${id}`).value = cat.nombre;
-    }
-
-    async function guardarNombreCategoria(id) {
-      const msg = document.getElementById('catMsg');
-      const nuevoNombre = document.getElementById(`catinput-${id}`).value.trim();
-      if (!nuevoNombre) return;
-
-      const res = await fetch(`/api/admin/categories/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
-        body: JSON.stringify({ nombre: nuevoNombre }),
-      });
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        msg.style.color = '#dc2626';
-        msg.textContent = data.error || 'No se pudo renombrar';
-        return;
-      }
-
-      const idx = categoriasAdmin.findIndex((c) => c.id === id);
-      if (idx !== -1) categoriasAdmin[idx].nombre = nuevoNombre;
-      categoriasAdmin.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-      msg.style.color = '#16a34a';
-      msg.textContent = `Categoría renombrada a "${nuevoNombre}" ✅`;
-      renderCategorias();
-    }
-
-    async function toggleVisibleCategoria(id, visible) {
-      const msg = document.getElementById('catMsg');
-      const res = await fetch(`/api/admin/categories/${id}/visible`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
-        body: JSON.stringify({ visible }),
-      });
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        msg.style.color = '#dc2626';
-        msg.textContent = data.error || 'No se pudo actualizar';
-        return;
-      }
-
-      const idx = categoriasAdmin.findIndex((c) => c.id === id);
-      if (idx !== -1) categoriasAdmin[idx].visible = visible;
-      msg.style.color = '#16a34a';
-      msg.textContent = visible ? 'Categoría mostrada ✅' : 'Categoría ocultada ✅';
-      renderCategorias();
-    }
-
     // ─── Arranque ────────────────────────────────────────────────────────
     (async function start() {
       config = await StoreApp.initStore();
+      document.getElementById('precio').placeholder = config.soloCup ? 'Precio (CUP)' : 'Precio (USD)';
       const select = document.getElementById('categoria');
       config.categorias.forEach((c) => {
         const opt = document.createElement('option');
