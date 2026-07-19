@@ -32,7 +32,7 @@ export const storeConfig = {
   nombre: process.env.STORE_NAME || 'Bazar El Romero',
   slug: process.env.STORE_SLUG || 'Bazar El Romero',
   slogan: process.env.STORE_SLOGAN || 'Plantas medicinales,aromáticas y ornamentales. Artículos del hogar.',
-  logo: process.env.STORE_LOGO_PATH || '/logo.png',
+  logo: process.env.STORE_LOGO_PATH || '/logo.jpg',
   colores: {
     primario: process.env.STORE_COLOR_PRIMARY || '#0f766e',
     acento: process.env.STORE_COLOR_ACCENT || '#f59e0b',
