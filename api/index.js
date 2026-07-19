@@ -324,14 +324,18 @@ app.put('/api/admin/categories/:id', verifyAdmin, async (req, res) => {
   }
   await categoriasListas;
   const { id } = req.params;
-  const { activa } = req.body;
-  if (typeof activa !== 'boolean') {
-    return res.status(400).json({ error: 'Falta el campo "activa" (true/false)' });
+  const { activa, nombre } = req.body;
+
+  const cambios = {};
+  if (typeof activa === 'boolean') cambios.activa = activa;
+  if (typeof nombre === 'string' && nombre.trim()) cambios.nombre = nombre.trim();
+  if (Object.keys(cambios).length === 0) {
+    return res.status(400).json({ error: 'Nada para actualizar (envía "activa" y/o "nombre")' });
   }
 
   const { data, error } = await supabaseService
     .from('categorias')
-    .update({ activa })
+    .update(cambios)
     .eq('id', id)
     .select();
   if (error) return res.status(500).json({ error: error.message });

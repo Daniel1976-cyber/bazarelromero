@@ -185,6 +185,7 @@
         Ocultar una categoría la quita del menú y del buscador para el cliente — no borra ni afecta los productos que ya tengas en ella.
       </p>
       <div id="listaCategoriasContenedor">Cargando...</div>
+      <p id="categoriaToggleMsg" style="font-size:.85rem;"></p>
     </div>
   </div>
 
@@ -400,29 +401,70 @@
       if (!lista.length) { contenedor.innerHTML = '<p>Todavía no has creado ninguna categoría.</p>'; return; }
 
       contenedor.innerHTML = lista.map((c) => `
-        <div class="producto-row">
+        <div class="producto-row" data-cat-id="${c.id}">
           <div class="info">
-            <div class="nombre">${c.nombre}</div>
+            <div class="nombre nombre-texto">${c.nombre}</div>
+            <input class="nombre-input" style="display:none; width:100%; padding:.3rem; border:1px solid #cbd5e1; border-radius:.3rem; margin-bottom:.3rem;" value="${c.nombre}" />
             <div class="meta">
               <span class="badge ${c.activa ? 'si' : 'no'}">${c.activa ? 'Activa' : 'Oculta'}</span>
             </div>
           </div>
           <div class="acciones">
+            <button class="btn-editar btn-editar-cat" onclick="iniciarEdicionCategoria('${c.id}')">Editar</button>
+            <button class="btn-editar guardar-cat" style="display:none;" onclick="guardarNombreCategoria('${c.id}')">Guardar</button>
             <button class="${c.activa ? 'btn-ocultar' : 'btn-mostrar'}" onclick="toggleCategoriaActiva('${c.id}', ${!c.activa})">${c.activa ? 'Ocultar' : 'Mostrar'}</button>
           </div>
         </div>
       `).join('');
     }
 
+    function iniciarEdicionCategoria(id) {
+      const row = document.querySelector(`.producto-row[data-cat-id="${id}"]`);
+      row.querySelector('.nombre-texto').style.display = 'none';
+      row.querySelector('.nombre-input').style.display = 'block';
+      row.querySelector('.btn-editar-cat').style.display = 'none';
+      row.querySelector('.guardar-cat').style.display = 'inline-block';
+      row.querySelector('.nombre-input').focus();
+    }
+
+    async function guardarNombreCategoria(id) {
+      const row = document.querySelector(`.producto-row[data-cat-id="${id}"]`);
+      const nuevoNombre = row.querySelector('.nombre-input').value.trim();
+      const msg = document.getElementById('categoriaToggleMsg');
+      if (!nuevoNombre) return;
+
+      const res = await fetch(`/api/admin/categories/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify({ nombre: nuevoNombre }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await cargarCategoriasAdmin();
+        renderListaCategorias();
+        msg.style.color = '#16a34a';
+        msg.textContent = 'Nombre actualizado ✅';
+      } else {
+        msg.style.color = '#dc2626';
+        msg.textContent = `Error al actualizar: ${data.error || res.status}`;
+      }
+    }
+
     async function toggleCategoriaActiva(id, nuevoValor) {
+      const msg = document.getElementById('categoriaToggleMsg');
+      msg.textContent = '';
       const res = await fetch(`/api/admin/categories/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
         body: JSON.stringify({ activa: nuevoValor }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         await cargarCategoriasAdmin();
         renderListaCategorias();
+      } else {
+        msg.style.color = '#dc2626';
+        msg.textContent = `Error al actualizar: ${data.error || res.status}`;
       }
     }
 

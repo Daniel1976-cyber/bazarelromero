@@ -26,6 +26,22 @@ function applyBranding(config) {
   // Colores vía variables CSS -> permite que styles.css sea igual en todas las tiendas
   document.documentElement.style.setProperty('--color-primario', config.colores.primario);
   document.documentElement.style.setProperty('--color-acento', config.colores.acento);
+  document.documentElement.style.setProperty(
+    '--header-gradiente',
+    config.colores.headerGradiente || config.colores.primario
+  );
+
+  // Tipografías del tema (opcional). Si la tienda eligió un tema con
+  // fuentes de Google Fonts, se inyecta el link una sola vez.
+  if (config.fuenteGoogleUrl && !document.getElementById('storeFontLink')) {
+    const link = document.createElement('link');
+    link.id = 'storeFontLink';
+    link.rel = 'stylesheet';
+    link.href = config.fuenteGoogleUrl;
+    document.head.appendChild(link);
+  }
+  document.documentElement.style.setProperty('--fuente-titulo', config.fuenteTitulo || 'inherit');
+  document.documentElement.style.setProperty('--fuente-cuerpo', config.fuenteCuerpo || 'system-ui, sans-serif');
 
   document.querySelectorAll('[data-store="nombre"]').forEach((el) => (el.textContent = config.nombre));
   document.querySelectorAll('[data-store="slogan"]').forEach((el) => (el.textContent = config.slogan));
