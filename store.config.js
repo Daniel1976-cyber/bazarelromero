@@ -29,10 +29,10 @@ function parseCategories(raw) {
 }
 
 export const storeConfig = {
-  nombre: process.env.STORE_NAME || 'Bazar El Romero',
-  slug: process.env.STORE_SLUG || 'Bazar El Romero',
-  slogan: process.env.STORE_SLOGAN || 'Plantas medicinales,aromáticas y ornamentales. Artículos del hogar.',
-  logo: process.env.STORE_LOGO_PATH || '/logo.jpg',
+  nombre: process.env.STORE_NAME || 'Mi Tienda',
+  slug: process.env.STORE_SLUG || 'mi-tienda',
+  slogan: process.env.STORE_SLOGAN || '',
+  logo: process.env.STORE_LOGO_PATH || '/logo.png',
   colores: {
     primario: process.env.STORE_COLOR_PRIMARY || '#0f766e',
     acento: process.env.STORE_COLOR_ACCENT || '#f59e0b',
@@ -47,7 +47,10 @@ export const storeConfig = {
   fuenteTitulo: process.env.STORE_FONT_TITULO || '',
   fuenteCuerpo: process.env.STORE_FONT_BODY || '',
   fuenteGoogleUrl: process.env.STORE_FONT_GOOGLE_URL || '',
-  whatsapp: process.env.STORE_WHATSAPP || '',
+  // wa.me exige el número SOLO con dígitos (sin "+", espacios ni guiones).
+  // Si alguien lo escribe como "+52 998 323 8891" en el .env, esto lo
+  // limpia solo — así nunca se rompe el link por un error de formato.
+  whatsapp: (process.env.STORE_WHATSAPP || '').replace(/[^0-9]/g, ''),
   email: process.env.STORE_EMAIL || '',
   facebook: process.env.STORE_FACEBOOK || '',
   direccion: process.env.STORE_ADDRESS || '',

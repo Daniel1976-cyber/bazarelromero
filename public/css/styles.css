@@ -37,8 +37,8 @@ header img {
 }
 
 header img.logo-round {
-  height: 100px;
-  width: 100px;
+  height: 95px;
+  width: 95px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid rgba(255, 255, 255, .5);
@@ -90,6 +90,13 @@ header .slogan {
   padding: .5rem 1rem;
   border-radius: .4rem;
   cursor: pointer;
+}
+
+.search-icon-btn {
+  flex-shrink: 0;
+  width: 42px;
+  padding: 0 !important;
+  font-size: 1.05rem;
 }
 
 .search-suggestions {

@@ -53,6 +53,10 @@ async function cargarProductos() {
       disponible: p.disponible,
       img: p.img || `https://via.placeholder.com/400x300?text=${encodeURIComponent(p.nombre)}`,
       descripcion: p.descripcion || '',
+      // Costo/cantidad: solo para métricas del admin. NUNCA se envían al
+      // catálogo público (ver el "sanear" antes de responder /api/products).
+      costo: p.costo === null || p.costo === undefined ? null : Number(p.costo),
+      cantidad: p.cantidad === null || p.cantidad === undefined ? null : Number(p.cantidad),
     }));
     console.log(`[${storeConfig.nombre}] Cargados ${productos.length} productos desde Supabase`);
   } catch (e) {
@@ -134,15 +138,22 @@ app.get('/api/admin/categories', verifyAdmin, async (req, res) => {
 });
 
 // ─── Catálogo ──────────────────────────────────────────────────────────────
+// Quita datos internos del admin (costo, cantidad en stock) antes de que
+// cualquier respuesta pública los toque. El cliente NUNCA debe ver esto.
+function paraCliente(p) {
+  const { costo, cantidad, ...publico } = p;
+  return publico;
+}
+
 // Público: solo lo disponible. Si no hay inventario, el admin lo oculta con
 // el interruptor "disponible" en vez de borrarlo — así el producto sigue
 // existiendo en la base de datos y no hay que recrearlo cuando vuelva a haber stock.
 app.get('/api/products', async (req, res) => {
   await productosListos;
-  res.json(productos.filter((p) => p.disponible));
+  res.json(productos.filter((p) => p.disponible).map(paraCliente));
 });
 
-// Admin: todo el catálogo (disponible y no disponible), para el dashboard y la edición.
+// Admin: todo el catálogo (disponible y no disponible, con costo/cantidad), para el dashboard y la edición.
 app.get('/api/admin/products', verifyAdmin, async (req, res) => {
   await productosListos;
   res.json(productos);
@@ -152,7 +163,7 @@ app.get('/api/products/:id', async (req, res) => {
   await productosListos;
   const producto = productos.find((p) => p.id === parseInt(req.params.id, 10));
   if (!producto) return res.status(404).json({ message: 'Producto no encontrado' });
-  res.json(producto);
+  res.json(paraCliente(producto));
 });
 
 app.get('/api/categories', async (req, res) => {
@@ -202,10 +213,12 @@ app.post('/api/admin/products', verifyAdmin, async (req, res) => {
   if (!supabaseService) {
     return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado en esta tienda' });
   }
-  const { nombre, categoria, subcategoria, precio, disponible, imagen, img, descripcion } = req.body;
+  const { nombre, categoria, subcategoria, precio, disponible, imagen, img, descripcion, costo, cantidad } = req.body;
   const { data, error } = await supabaseService.from('productos').insert([{
     nombre, categoria, subcategoria: subcategoria || 'General',
     precio, disponible: disponible !== false, img: imagen || img, descripcion,
+    costo: costo === '' || costo === undefined ? null : costo,
+    cantidad: cantidad === '' || cantidad === undefined ? null : cantidad,
   }]).select();
   if (error) return res.status(500).json({ error: error.message });
   await cargarProductos();
@@ -217,10 +230,15 @@ app.put('/api/admin/products/:id', verifyAdmin, async (req, res) => {
     return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado en esta tienda' });
   }
   const { id } = req.params;
-  const camposPermitidos = ['nombre', 'categoria', 'subcategoria', 'precio', 'disponible', 'descripcion'];
+  const camposPermitidos = ['nombre', 'categoria', 'subcategoria', 'precio', 'disponible', 'descripcion', 'costo', 'cantidad'];
   const cambios = {};
   for (const campo of camposPermitidos) {
-    if (req.body[campo] !== undefined) cambios[campo] = req.body[campo];
+    if (req.body[campo] !== undefined) {
+      const valor = req.body[campo];
+      // costo/cantidad son opcionales: "" (campo vacío en el form) debe
+      // guardarse como null, no como texto vacío (rompería la columna numérica).
+      cambios[campo] = (campo === 'costo' || campo === 'cantidad') && valor === '' ? null : valor;
+    }
   }
   // "imagen" o "img": cualquiera de los dos nombres actualiza la columna img
   if (req.body.imagen !== undefined) cambios.img = req.body.imagen;
