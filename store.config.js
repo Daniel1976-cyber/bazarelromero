@@ -29,10 +29,10 @@ function parseCategories(raw) {
 }
 
 export const storeConfig = {
-  nombre: process.env.STORE_NAME || 'Bazar El Romero',
-  slug: process.env.STORE_SLUG || 'bazar-el-romero',
-  slogan: process.env.STORE_SLOGAN || 'Plantas medicinales,aromáticas y ornamentales. Artículos del hogar.',
-  logo: process.env.STORE_LOGO_PATH || '/logo.jpg',
+  nombre: process.env.STORE_NAME || 'Mi Tienda',
+  slug: process.env.STORE_SLUG || 'mi-tienda',
+  slogan: process.env.STORE_SLOGAN || '',
+  logo: process.env.STORE_LOGO_PATH || '/logo.png',
   colores: {
     primario: process.env.STORE_COLOR_PRIMARY || '#0f766e',
     acento: process.env.STORE_COLOR_ACCENT || '#f59e0b',

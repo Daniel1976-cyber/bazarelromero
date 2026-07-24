@@ -78,7 +78,7 @@ function renderCategoryButtons(categorias) {
   const contenedor = document.getElementById('categoryButtons');
   if (!contenedor) return;
   contenedor.innerHTML = categorias
-    .map((c) => `<button class="cat-btn" data-cat="${c.id}">${c.nombre}</button>`)
+    .map((c) => `<button class="cat-btn" data-cat="${c.id}" aria-pressed="false">${c.nombre}</button>`)
     .join('');
 }
 
@@ -108,10 +108,10 @@ function ensureCartModal() {
   overlay.id = 'storeCartOverlay';
   overlay.className = 'cart-overlay';
   overlay.innerHTML = `
-    <div class="cart-modal">
+    <div class="cart-modal" role="dialog" aria-modal="true" aria-labelledby="cartModalTitulo">
       <div class="cart-modal-header">
-        <h3>Tu carrito</h3>
-        <button class="cart-close" onclick="StoreApp.closeCart()">✕</button>
+        <h3 id="cartModalTitulo">Tu carrito</h3>
+        <button class="cart-close" onclick="StoreApp.closeCart()" aria-label="Cerrar carrito">✕</button>
       </div>
       <div id="cartItemsList" class="cart-items-list"></div>
       <div class="cart-modal-footer">
@@ -123,6 +123,9 @@ function ensureCartModal() {
   `;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCart(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.classList.contains('open')) closeCart();
+  });
 }
 
 function renderCartItems() {
@@ -253,7 +256,7 @@ function renderProductCard(p) {
       <div class="body">
         <div>${p.nombre}</div>
         <div class="price">${formatPrecio(p.precio_usd, p.precio_cup)}</div>
-        <button onclick='StoreApp.addToCart(${JSON.stringify(p)})'>Agregar</button>
+        <button onclick='StoreApp.addToCart(${JSON.stringify(p)})' aria-label="Agregar ${p.nombre} al carrito">Agregar</button>
       </div>
     </div>
   `;
@@ -283,10 +286,17 @@ function setupAutocomplete(inputEl, dropdownEl, getProductos, onSelect) {
   if (!inputEl || !dropdownEl) return;
   let indiceActivo = -1;
 
+  inputEl.setAttribute('role', 'combobox');
+  inputEl.setAttribute('aria-autocomplete', 'list');
+  inputEl.setAttribute('aria-expanded', 'false');
+  dropdownEl.setAttribute('role', 'listbox');
+
   function cerrar() {
     dropdownEl.classList.remove('open');
     dropdownEl.innerHTML = '';
     indiceActivo = -1;
+    inputEl.setAttribute('aria-expanded', 'false');
+    inputEl.removeAttribute('aria-activedescendant');
   }
 
   function seleccionar(producto) {
@@ -308,12 +318,13 @@ function setupAutocomplete(inputEl, dropdownEl, getProductos, onSelect) {
     if (!coincidencias.length) { cerrar(); return; }
 
     dropdownEl.innerHTML = coincidencias.map((p, i) => `
-      <div class="suggestion-item" data-idx="${i}" data-id="${p.id}">
+      <div class="suggestion-item" id="sugerencia-${i}" role="option" aria-selected="false" data-idx="${i}" data-id="${p.id}">
         <span>${p.nombre}</span>
         <span class="cat">${p.categoria}</span>
       </div>
     `).join('');
     dropdownEl.classList.add('open');
+    inputEl.setAttribute('aria-expanded', 'true');
     indiceActivo = -1;
 
     dropdownEl.querySelectorAll('.suggestion-item').forEach((el) => {
@@ -344,7 +355,12 @@ function setupAutocomplete(inputEl, dropdownEl, getProductos, onSelect) {
     } else {
       return;
     }
-    items.forEach((el, i) => el.classList.toggle('highlighted', i === indiceActivo));
+    items.forEach((el, i) => {
+      const activo = i === indiceActivo;
+      el.classList.toggle('highlighted', activo);
+      el.setAttribute('aria-selected', String(activo));
+    });
+    inputEl.setAttribute('aria-activedescendant', items[indiceActivo].id);
   });
 
   document.addEventListener('click', (e) => {

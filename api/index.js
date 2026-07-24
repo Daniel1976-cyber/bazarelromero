@@ -13,6 +13,7 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '..');
 
 const app = express();
+app.set('trust proxy', true); // necesario en Vercel para que req.protocol detecte "https" bien
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -366,7 +367,38 @@ app.put('/api/admin/categories/:id', verifyAdmin, async (req, res) => {
 
 // ─── Archivos estáticos ────────────────────────────────────────────────────
 const publicDir = path.join(projectRoot, 'public');
+
+// Reemplaza los placeholders {{STORE_...}} del HTML con los datos reales de
+// esta tienda, para que el título/descripción/imagen sean correctos incluso
+// para buscadores y vistas previas de WhatsApp/Facebook (que no ejecutan
+// JavaScript, así que lo que hace store-app.js en el navegador no les sirve).
+function renderPaginaConMeta(nombreArchivo, req) {
+  const ruta = path.join(publicDir, nombreArchivo);
+  const html = fs.readFileSync(ruta, 'utf8');
+
+  const urlActual = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  const titulo = storeConfig.nombre;
+  const descripcion = (storeConfig.slogan || '').trim()
+    || `Catálogo de ${storeConfig.nombre}. Haz tu pedido fácil y rápido por WhatsApp.`;
+  const logoAbsoluto = /^https?:\/\//.test(storeConfig.logo)
+    ? storeConfig.logo
+    : `${req.protocol}://${req.get('host')}${storeConfig.logo}`;
+
+  return html
+    .split('{{STORE_TITLE}}').join(titulo)
+    .split('{{STORE_DESCRIPTION}}').join(descripcion)
+    .split('{{STORE_OG_IMAGE}}').join(logoAbsoluto)
+    .split('{{STORE_URL}}').join(urlActual)
+    .split('{{STORE_LOGO}}').join(storeConfig.logo);
+}
+
+app.get('/', (req, res) => res.send(renderPaginaConMeta('index.html', req)));
+app.get('/search.html', (req, res) => res.send(renderPaginaConMeta('search.html', req)));
+
+// Evita el 404 de favicon.ico que piden algunos navegadores por su cuenta,
+// aunque ya exista el <link rel="icon"> apuntando al logo.
+app.get('/favicon.ico', (req, res) => res.redirect(storeConfig.logo));
+
 app.use(express.static(publicDir));
-app.get('/', (req, res) => res.sendFile(path.join(publicDir, 'index.html')));
 
 export default app;
