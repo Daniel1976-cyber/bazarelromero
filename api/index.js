@@ -384,12 +384,21 @@ function renderPaginaConMeta(nombreArchivo, req) {
     ? storeConfig.logo
     : `${req.protocol}://${req.get('host')}${storeConfig.logo}`;
 
+  // search.html cumple dos roles distintos: ficha de un producto puntual
+  // (?id=, sí vale la pena que Google la indexe) o resultados de una
+  // búsqueda de texto libre (no debe competir con la página principal).
+  const esFichaDeProducto = nombreArchivo === 'search.html' && Boolean(req.query.id);
+  const robots = nombreArchivo === 'search.html'
+    ? (esFichaDeProducto ? 'index, follow' : 'noindex, follow')
+    : 'index, follow';
+
   return html
     .split('{{STORE_TITLE}}').join(titulo)
     .split('{{STORE_DESCRIPTION}}').join(descripcion)
     .split('{{STORE_OG_IMAGE}}').join(logoAbsoluto)
     .split('{{STORE_URL}}').join(urlActual)
-    .split('{{STORE_LOGO}}').join(storeConfig.logo);
+    .split('{{STORE_LOGO}}').join(storeConfig.logo)
+    .split('{{STORE_ROBOTS}}').join(robots);
 }
 
 app.get('/', (req, res) => res.send(renderPaginaConMeta('index.html', req)));

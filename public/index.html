@@ -43,7 +43,7 @@
   <nav id="categoryButtons" aria-label="Categorías de productos"></nav>
 
   <main id="contenido-principal">
-    <div id="productGrid" aria-live="polite">Cargando productos...</div>
+    <div id="productGrid" aria-live="polite"></div>
   </main>
 
   <button class="cart-float" onclick="StoreApp.openCart()" aria-label="Ver carrito de compras">
@@ -82,6 +82,8 @@
     }
 
     (async function start() {
+      document.getElementById('productGrid').innerHTML = StoreApp.renderSkeletons();
+
       const config = await StoreApp.initStore();
 
       document.getElementById('categoryButtons').addEventListener('click', (e) => {

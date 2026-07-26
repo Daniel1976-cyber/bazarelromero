@@ -90,6 +90,25 @@ function addToCart(producto) {
   else cart.push({ ...producto, cantidad: 1 });
   localStorage.setItem('cart', JSON.stringify(cart));
   updateCartBadge();
+  mostrarToast(`${producto.nombre} agregado ✅`);
+}
+
+// ─── Toast de confirmación (aparece y desaparece solo) ────────────────────
+let toastTimeoutId = null;
+function mostrarToast(mensaje) {
+  let toast = document.getElementById('storeToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'storeToast';
+    toast.className = 'store-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    document.body.appendChild(toast);
+  }
+  toast.textContent = mensaje;
+  toast.classList.add('visible');
+  clearTimeout(toastTimeoutId);
+  toastTimeoutId = setTimeout(() => toast.classList.remove('visible'), 2200);
 }
 
 function updateCartBadge() {
@@ -124,8 +143,27 @@ function ensureCartModal() {
   document.body.appendChild(overlay);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCart(); });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && overlay.classList.contains('open')) closeCart();
+    if (!overlay.classList.contains('open')) return;
+    if (e.key === 'Escape') { closeCart(); return; }
+    if (e.key === 'Tab') atraparFoco(e, overlay);
   });
+}
+
+// Mantiene el Tab/Shift+Tab dentro del modal mientras está abierto —
+// sin esto, la tecla Tab se "escapa" hacia el resto de la página.
+function atraparFoco(e, overlay) {
+  const focosables = overlay.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (!focosables.length) return;
+  const primero = focosables[0];
+  const ultimo = focosables[focosables.length - 1];
+
+  if (e.shiftKey && document.activeElement === primero) {
+    e.preventDefault();
+    ultimo.focus();
+  } else if (!e.shiftKey && document.activeElement === ultimo) {
+    e.preventDefault();
+    primero.focus();
+  }
 }
 
 function renderCartItems() {
@@ -163,15 +201,21 @@ function renderCartItems() {
   totalDisplay.textContent = formatTotal(total, totalCup);
 }
 
+let elementoAntesDeModal = null;
+
 function openCart() {
+  elementoAntesDeModal = document.activeElement;
   ensureCartModal();
   renderCartItems();
-  document.getElementById('storeCartOverlay').classList.add('open');
+  const overlay = document.getElementById('storeCartOverlay');
+  overlay.classList.add('open');
+  overlay.querySelector('.cart-close')?.focus();
 }
 
 function closeCart() {
   const overlay = document.getElementById('storeCartOverlay');
   if (overlay) overlay.classList.remove('open');
+  elementoAntesDeModal?.focus();
 }
 
 function changeCartQty(id, delta) {
@@ -260,6 +304,58 @@ function renderProductCard(p) {
       </div>
     </div>
   `;
+}
+
+// Skeleton screens: se muestran mientras se espera la respuesta real del
+// catálogo, en vez de un texto plano "Cargando..." — se percibe más rápido.
+// Schema.org (JSON-LD) para la ficha de detalle de un producto — ayuda a
+// que los buscadores muestren precio/disponibilidad directo en resultados.
+// Se llama solo en la página de detalle (no en la grilla de catálogo).
+function inyectarSchemaProducto(producto) {
+  const anterior = document.getElementById('productSchema');
+  if (anterior) anterior.remove();
+
+  const precio = producto.precio_usd ?? producto.precio_cup;
+  if (precio == null) return; // sin precio no armamos el schema
+
+  const moneda = producto.precio_usd != null ? 'USD' : 'CUP';
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: producto.nombre,
+    image: producto.img,
+    description: producto.descripcion || producto.nombre,
+    offers: {
+      '@type': 'Offer',
+      price: precio,
+      priceCurrency: moneda,
+      availability: producto.disponible !== false
+        ? 'https://schema.org/InStock'
+        : 'https://schema.org/OutOfStock',
+      url: window.location.href,
+    },
+  };
+
+  const script = document.createElement('script');
+  script.type = 'application/ld+json';
+  script.id = 'productSchema';
+  script.textContent = JSON.stringify(schema);
+  document.head.appendChild(script);
+}
+
+function renderSkeletons(cantidad = 6) {
+  const una = `
+    <div class="skeleton-card">
+      <div class="skeleton-img"></div>
+      <div class="skeleton-body">
+        <div class="skeleton-line corta"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line precio"></div>
+        <div class="skeleton-line boton"></div>
+      </div>
+    </div>
+  `;
+  return una.repeat(cantidad);
 }
 
 // Efecto "spotlight": el brillo sigue al mouse sobre la imagen del producto.
@@ -384,4 +480,7 @@ window.StoreApp = {
   closeCart,
   changeCartQty,
   removeCartItem,
+  mostrarToast,
+  renderSkeletons,
+  inyectarSchemaProducto,
 };

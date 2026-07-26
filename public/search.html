@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{STORE_TITLE}}</title>
   <meta name="description" content="{{STORE_DESCRIPTION}}" />
-  <meta name="robots" content="noindex, follow" />
+  <meta name="robots" content="{{STORE_ROBOTS}}" />
 
   <meta property="og:type" content="website" />
   <meta property="og:title" content="{{STORE_TITLE}}" />
@@ -52,13 +52,13 @@
     <div id="detalleWrap" style="display:none;">
       <div id="productDetail" class="product-detail"></div>
       <h3 class="similares-titulo">Productos similares</h3>
-      <div id="similaresGrid" aria-live="polite">Cargando...</div>
+      <div id="similaresGrid" aria-live="polite"></div>
     </div>
 
     <!-- Modo "resultados de texto" (llegó vía ?q=/&cat=) -->
     <div id="resultadosWrap" style="display:none;">
       <h3 style="padding: 0 1.5rem;" id="resultsTitle"></h3>
-      <div id="productGrid" aria-live="polite">Buscando...</div>
+      <div id="productGrid" aria-live="polite"></div>
     </div>
   </main>
 
@@ -114,6 +114,7 @@
           <button onclick='StoreApp.addToCart(${JSON.stringify(producto)})' aria-label="Agregar ${producto.nombre} al carrito">Agregar al carrito</button>
         </div>
       `;
+      StoreApp.inyectarSchemaProducto(producto);
 
       const similares = productosCache
         .filter((p) => p.categoria === producto.categoria && p.id !== producto.id)
@@ -129,6 +130,9 @@
     }
 
     (async function start() {
+      document.getElementById('productGrid').innerHTML = StoreApp.renderSkeletons();
+      document.getElementById('similaresGrid').innerHTML = StoreApp.renderSkeletons(4);
+
       const config = await StoreApp.initStore();
 
       productosCache = await fetch('/api/products').then((r) => r.json());
