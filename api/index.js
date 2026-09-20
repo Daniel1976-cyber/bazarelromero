@@ -226,6 +226,16 @@ app.post('/api/admin/products', verifyAdmin, async (req, res) => {
   res.json(data);
 });
 
+// Extrae la ruta dentro del bucket a partir de la URL pública completa,
+// para poder borrar el archivo viejo del Storage cuando se reemplaza.
+function extraerRutaStorage(urlCompleta, bucket) {
+  if (!urlCompleta) return null;
+  const marcador = `/public/${bucket}/`;
+  const idx = urlCompleta.indexOf(marcador);
+  if (idx === -1) return null;
+  return urlCompleta.slice(idx + marcador.length);
+}
+
 app.put('/api/admin/products/:id', verifyAdmin, async (req, res) => {
   if (!supabaseService) {
     return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado en esta tienda' });
@@ -236,17 +246,22 @@ app.put('/api/admin/products/:id', verifyAdmin, async (req, res) => {
   for (const campo of camposPermitidos) {
     if (req.body[campo] !== undefined) {
       const valor = req.body[campo];
-      // costo/cantidad son opcionales: "" (campo vacío en el form) debe
-      // guardarse como null, no como texto vacío (rompería la columna numérica).
       cambios[campo] = (campo === 'costo' || campo === 'cantidad') && valor === '' ? null : valor;
     }
   }
-  // "imagen" o "img": cualquiera de los dos nombres actualiza la columna img
   if (req.body.imagen !== undefined) cambios.img = req.body.imagen;
   else if (req.body.img !== undefined) cambios.img = req.body.img;
 
   if (Object.keys(cambios).length === 0) {
     return res.status(400).json({ error: 'No hay campos para actualizar' });
+  }
+
+  // NUEVO: si se va a reemplazar la imagen, guardamos cuál era la vieja
+  // ANTES de sobrescribirla, para poder borrarla del Storage después.
+  let imagenVieja = null;
+  if (cambios.img !== undefined) {
+    const { data: actual } = await supabaseService.from('productos').select('img').eq('id', id).single();
+    imagenVieja = actual?.img || null;
   }
 
   const { data, error } = await supabaseService.from('productos')
@@ -255,18 +270,19 @@ app.put('/api/admin/products/:id', verifyAdmin, async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
   if (!data || !data.length) return res.status(404).json({ error: 'Producto no encontrado' });
 
+  // NUEVO: borrar la imagen vieja del Storage, solo si de verdad cambió.
+  // Es "best-effort": si falla el borrado, no tumbamos la respuesta —
+  // el producto ya se guardó bien, esto es solo limpieza.
+  if (imagenVieja && imagenVieja !== cambios.img) {
+    const ruta = extraerRutaStorage(imagenVieja, storeConfig.supabase.bucket);
+    if (ruta) {
+      supabaseService.storage.from(storeConfig.supabase.bucket).remove([ruta])
+        .catch((e) => console.error('No se pudo borrar la imagen vieja:', e.message));
+    }
+  }
+
   await cargarProductos();
   res.json(data);
-});
-
-app.delete('/api/admin/products/:id', verifyAdmin, async (req, res) => {
-  if (!supabaseService) {
-    return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado en esta tienda' });
-  }
-  const { error } = await supabaseService.from('productos').delete().eq('id', req.params.id);
-  if (error) return res.status(500).json({ error: error.message });
-  productos = productos.filter((p) => p.id !== parseInt(req.params.id, 10));
-  res.json({ success: true });
 });
 
 // Subida de imagen (requiere service role key)
@@ -285,7 +301,8 @@ app.post('/api/admin/upload', verifyAdmin, async (req, res) => {
 
     const { error } = await supabaseService.storage
       .from(storeConfig.supabase.bucket)
-      .upload(finalName, buffer, { contentType: mimeType || 'image/jpeg' });
+      .upload(finalName, buffer, { contentType: mimeType || 'image/jpeg',
+        cacheControl: '31536000', });
     if (error) return res.status(500).json({ error: error.message });
 
     const { data: urlData } = supabase.storage.from(storeConfig.supabase.bucket).getPublicUrl(finalName);
@@ -364,7 +381,42 @@ app.put('/api/admin/categories/:id', verifyAdmin, async (req, res) => {
   if (idx !== -1) categorias[idx] = data[0];
   res.json(data[0]);
 });
+// Registrar un pedido automáticamente cuando el cliente da "Enviar por WhatsApp".
+// Pública (la llama el propio checkout del cliente) — pero solo inserta, nunca lee ni modifica.
+app.post('/api/pedidos', async (req, res) => {
+  if (!supabaseService) return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado' });
+  const { items, totalUsd, totalCup } = req.body;
+  if (!Array.isArray(items) || !items.length) {
+    return res.status(400).json({ error: 'El pedido no tiene productos' });
+  }
+  const { error } = await supabaseService.from('pedidos').insert([{
+    items, total_usd: totalUsd ?? null, total_cup: totalCup ?? null, estado: 'pendiente',
+  }]);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+});
 
+// Listar pedidos (admin)
+app.get('/api/admin/pedidos', verifyAdmin, async (req, res) => {
+  if (!supabaseService) return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado' });
+  const { data, error } = await supabaseService.from('pedidos').select('*').order('fecha', { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Marcar un pedido como concretado / no concretado
+app.put('/api/admin/pedidos/:id', verifyAdmin, async (req, res) => {
+  if (!supabaseService) return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado' });
+  const { estado } = req.body;
+  if (!['pendiente', 'concretado', 'no_concretado'].includes(estado)) {
+    return res.status(400).json({ error: 'Estado inválido' });
+  }
+  const { error } = await supabaseService.from('pedidos')
+    .update({ estado, actualizado_en: new Date().toISOString() })
+    .eq('id', req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+});
 // ─── Archivos estáticos ────────────────────────────────────────────────────
 const publicDir = path.join(projectRoot, 'public');
 
@@ -373,7 +425,12 @@ const publicDir = path.join(projectRoot, 'public');
 // para buscadores y vistas previas de WhatsApp/Facebook (que no ejecutan
 // JavaScript, así que lo que hace store-app.js en el navegador no les sirve).
 function renderPaginaConMeta(nombreArchivo, req) {
-  const ruta = path.join(publicDir, nombreArchivo);
+  // Los archivos reales están renombrados con "_" adelante (_index.html,
+  // _search.html, _admin.html) — a propósito, para que Vercel NO encuentre
+  // un archivo físico en esa ruta y así sí le toque pasar por esta función
+  // en vez de servirlo directo como estático (ver notas en vercel.json).
+  const archivoFisico = { 'index.html': '_index.html', 'search.html': '_search.html', 'admin.html': '_admin.html' }[nombreArchivo] || nombreArchivo;
+  const ruta = path.join(publicDir, archivoFisico);
   const html = fs.readFileSync(ruta, 'utf8');
 
   const urlActual = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
@@ -392,17 +449,36 @@ function renderPaginaConMeta(nombreArchivo, req) {
     ? (esFichaDeProducto ? 'index, follow' : 'noindex, follow')
     : 'index, follow';
 
+  // Colores, degradado y tipografía inyectados directo en el HTML (no
+  // esperan a que JS los aplique) — evita el "flash" de color base y logo
+  // vacío que se ve un instante antes de que cargue el JavaScript.
+  const colorPrimario = storeConfig.colores.primario;
+  const colorAcento = storeConfig.colores.acento;
+  const headerGradiente = storeConfig.colores.headerGradiente || colorPrimario;
+  const fuenteTitulo = storeConfig.fuenteTitulo || 'inherit';
+  const fuenteCuerpo = storeConfig.fuenteCuerpo || 'system-ui, sans-serif';
+  const fontLinkTag = storeConfig.fuenteGoogleUrl
+    ? `<link rel="stylesheet" href="${storeConfig.fuenteGoogleUrl}" />`
+    : '';
+
   return html
     .split('{{STORE_TITLE}}').join(titulo)
     .split('{{STORE_DESCRIPTION}}').join(descripcion)
     .split('{{STORE_OG_IMAGE}}').join(logoAbsoluto)
     .split('{{STORE_URL}}').join(urlActual)
     .split('{{STORE_LOGO}}').join(storeConfig.logo)
-    .split('{{STORE_ROBOTS}}').join(robots);
+    .split('{{STORE_ROBOTS}}').join(robots)
+    .split('{{STORE_COLOR_PRIMARIO}}').join(colorPrimario)
+    .split('{{STORE_COLOR_ACENTO}}').join(colorAcento)
+    .split('{{STORE_HEADER_GRADIENTE}}').join(headerGradiente)
+    .split('{{STORE_FUENTE_TITULO}}').join(fuenteTitulo)
+    .split('{{STORE_FUENTE_CUERPO}}').join(fuenteCuerpo)
+    .split('{{STORE_FONT_LINK}}').join(fontLinkTag);
 }
 
 app.get('/', (req, res) => res.send(renderPaginaConMeta('index.html', req)));
 app.get('/search.html', (req, res) => res.send(renderPaginaConMeta('search.html', req)));
+app.get('/admin.html', (req, res) => res.send(renderPaginaConMeta('admin.html', req)));
 
 // Evita el 404 de favicon.ico que piden algunos navegadores por su cuenta,
 // aunque ya exista el <link rel="icon"> apuntando al logo.

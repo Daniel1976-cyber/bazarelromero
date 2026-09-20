@@ -29,10 +29,10 @@ function parseCategories(raw) {
 }
 
 export const storeConfig = {
-  nombre: process.env.STORE_NAME || 'Bazar El Romero',
-  slug: process.env.STORE_SLUG || 'bazar-el-romero',
-  slogan: process.env.STORE_SLOGAN || 'Plantas medicinales,aromáticas y ornamentales. Artículos del hogar.',
-  logo: process.env.STORE_LOGO_PATH || '/logo.jpg',
+  nombre: process.env.STORE_NAME || 'Mi Tienda',
+  slug: process.env.STORE_SLUG || 'mi-tienda',
+  slogan: process.env.STORE_SLOGAN || '',
+  logo: process.env.STORE_LOGO_PATH || '/logo.webp',
   colores: {
     primario: process.env.STORE_COLOR_PRIMARY || '#0f766e',
     acento: process.env.STORE_COLOR_ACCENT || '#f59e0b',
@@ -44,17 +44,17 @@ export const storeConfig = {
   // Tipografías del tema (opcional). Si se deja vacío, usa la fuente del
   // sistema como hasta ahora. "fuenteGoogleUrl" es el link de Google Fonts
   // que carga las fuentes elegidas (ver temas/CATALOGO-DE-TEMAS.md).
-  fuenteTitulo: process.env.STORE_FONT_TITULO || "'Cormorant Garamond', serif",
-  fuenteCuerpo: process.env.STORE_FONT_BODY || "'Inter', sans-serif",
-  fuenteGoogleUrl: process.env.STORE_FONT_GOOGLE_URL || 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Inter:wght@400;600&display=swap',
+  fuenteTitulo: process.env.STORE_FONT_TITULO || '',
+  fuenteCuerpo: process.env.STORE_FONT_BODY || '',
+  fuenteGoogleUrl: process.env.STORE_FONT_GOOGLE_URL || '',
   // wa.me exige el número SOLO con dígitos (sin "+", espacios ni guiones).
   // Si alguien lo escribe como "+52 998 323 8891" en el .env, esto lo
   // limpia solo — así nunca se rompe el link por un error de formato.
-  whatsapp: (process.env.STORE_WHATSAPP || '5352846257').replace(/[^0-9]/g, ''),
-  email: process.env.STORE_EMAIL || 'elromerobazar@gmail.com',
+  whatsapp: (process.env.STORE_WHATSAPP || '').replace(/[^0-9]/g, ''),
+  email: process.env.STORE_EMAIL || '',
   facebook: process.env.STORE_FACEBOOK || '',
   direccion: process.env.STORE_ADDRESS || '',
-  horario: process.env.STORE_SCHEDULE || 'Lun-Sáb: 8:30 AM - 4:00 PM',
+  horario: process.env.STORE_SCHEDULE || '',
   mostrarTasaCambio: (process.env.STORE_SHOW_EXCHANGE_RATE || 'false').toLowerCase() === 'true',
 
   // Para tiendas que NO manejan USD en absoluto: el precio que cargan en

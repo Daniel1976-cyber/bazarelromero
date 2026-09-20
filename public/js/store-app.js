@@ -21,7 +21,10 @@ async function initStore() {
 }
 
 function applyBranding(config) {
-  document.title = config.nombre;
+  // En admin.html el título del servidor trae "· Admin" al final —
+  // lo mantenemos aquí en vez de perderlo cuando JS actualiza el título.
+  const esPanelAdmin = Boolean(document.getElementById('adminNav'));
+  document.title = esPanelAdmin ? `${config.nombre} · Admin` : config.nombre;
 
   // Colores vía variables CSS -> permite que styles.css sea igual en todas las tiendas
   document.documentElement.style.setProperty('--color-primario', config.colores.primario);
@@ -78,7 +81,7 @@ function renderCategoryButtons(categorias) {
   const contenedor = document.getElementById('categoryButtons');
   if (!contenedor) return;
   contenedor.innerHTML = categorias
-    .map((c) => `<button class="cat-btn" data-cat="${c.id}" aria-pressed="false">${c.nombre}</button>`)
+    .map((c) => `<button class="cat-btn" data-cat="${c.id}" aria-pressed="false">${escapeHtml(c.nombre)}</button>`)
     .join('');
 }
 
@@ -180,11 +183,13 @@ function renderCartItems() {
   }
 
   if (whatsappBtn) whatsappBtn.disabled = false;
-  list.innerHTML = cart.map((item) => `
+  list.innerHTML = cart.map((item) => {
+    const nombreSeguro = escapeHtml(item.nombre);
+    return `
     <div class="cart-item-row">
-      <img src="${item.img}" alt="${item.nombre}" />
+      <img src="${item.img}" alt="${nombreSeguro}" />
       <div class="info">
-        <div class="nombre">${item.nombre}</div>
+        <div class="nombre">${nombreSeguro}</div>
         <div class="precio">${formatPrecio(item.precio_usd, item.precio_cup)} c/u</div>
       </div>
       <div class="cart-qty">
@@ -194,7 +199,8 @@ function renderCartItems() {
       </div>
       <button class="cart-item-remove" onclick="StoreApp.removeCartItem(${item.id})" title="Quitar del carrito">🗑</button>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   const total = cart.reduce((acc, i) => acc + (i.precio_usd || 0) * i.cantidad, 0);
   const totalCup = cart.reduce((acc, i) => acc + (i.precio_cup || 0) * i.cantidad, 0);
@@ -247,9 +253,22 @@ function checkoutPorWhatsApp() {
   const total = cart.reduce((acc, i) => acc + (i.precio_usd || 0) * i.cantidad, 0);
   const totalCup = cart.reduce((acc, i) => acc + (i.precio_cup || 0) * i.cantidad, 0);
   const mensaje = `Hola, quiero pedir:%0A${detalle}%0A%0ATotal: ${formatTotal(total, totalCup)}`;
+
+  // Registra el pedido en segundo plano, SIN esperar la respuesta — así no
+  // demora la apertura de WhatsApp. Si falla (sin internet, etc.) no
+  // bloquea la compra, solo no queda registrada esa vez.
+  fetch('/api/pedidos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      items: cart.map((i) => ({ nombre: i.nombre, precio_usd: i.precio_usd, precio_cup: i.precio_cup, cantidad: i.cantidad })),
+      totalUsd: total,
+      totalCup: totalCup,
+    }),
+  }).catch(() => {});
+
   window.open(`https://wa.me/${config.whatsapp}?text=${mensaje}`, '_blank');
 }
-
 // ─── Buscador (usado en index.html y search.html) ─────────────────────────
 function buildSearchUrl(query, category) {
   const params = new URLSearchParams();
@@ -265,6 +284,29 @@ function submitSearch() {
 }
 
 // Formato contable: 1.00 | 1,234.56 — mismo formato usado en las tiendas anteriores.
+// Escapa texto que viene de la base de datos (nombre, descripción,
+// categoría — cualquier cosa que haya escrito un administrador) antes de
+// insertarlo dentro de innerHTML. Sin esto, un nombre de producto con
+// algo como <img src=x onerror=...> se ejecutaría en el navegador del
+// cliente que ve la tienda.
+function escapeHtml(valor) {
+  if (valor === null || valor === undefined) return '';
+  return String(valor)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Para cuando un objeto se pasa como JSON dentro de un atributo
+// onclick='...' (comillas simples): si algún campo trae una comilla
+// simple (ej. un nombre de producto con apóstrofe), rompería el atributo
+// HTML antes de que el navegador llegue a interpretarlo como JS.
+function jsonParaAtributo(obj) {
+  return JSON.stringify(obj).replace(/'/g, '&#39;');
+}
+
 function formatMoney(value) {
   if (value === null || value === undefined || isNaN(value)) return '';
   return Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -292,15 +334,16 @@ function formatTotal(totalUsd, totalCup) {
 
 // ─── Tarjeta de producto (usada por index.html y search.html) ────────────
 function renderProductCard(p) {
+  const nombreSeguro = escapeHtml(p.nombre);
   return `
     <div class="product-card">
       <div class="img-wrap">
-        <img src="${p.img}" alt="${p.nombre}" loading="lazy" />
+        <img src="${p.img}" alt="${nombreSeguro}" loading="lazy" />
       </div>
       <div class="body">
-        <div>${p.nombre}</div>
+        <div>${nombreSeguro}</div>
         <div class="price">${formatPrecio(p.precio_usd, p.precio_cup)}</div>
-        <button onclick='StoreApp.addToCart(${JSON.stringify(p)})' aria-label="Agregar ${p.nombre} al carrito">Agregar</button>
+        <button onclick='StoreApp.addToCart(${jsonParaAtributo(p)})' aria-label="Agregar ${nombreSeguro} al carrito">Agregar</button>
       </div>
     </div>
   `;
@@ -415,8 +458,8 @@ function setupAutocomplete(inputEl, dropdownEl, getProductos, onSelect) {
 
     dropdownEl.innerHTML = coincidencias.map((p, i) => `
       <div class="suggestion-item" id="sugerencia-${i}" role="option" aria-selected="false" data-idx="${i}" data-id="${p.id}">
-        <span>${p.nombre}</span>
-        <span class="cat">${p.categoria}</span>
+        <span>${escapeHtml(p.nombre)}</span>
+        <span class="cat">${escapeHtml(p.categoria)}</span>
       </div>
     `).join('');
     dropdownEl.classList.add('open');
@@ -483,4 +526,6 @@ window.StoreApp = {
   mostrarToast,
   renderSkeletons,
   inyectarSchemaProducto,
+  escapeHtml,
+  jsonParaAtributo,
 };
