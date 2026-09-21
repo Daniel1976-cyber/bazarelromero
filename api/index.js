@@ -53,6 +53,7 @@ async function cargarProductos() {
       subcategoria: p.subcategoria || 'General',
       disponible: p.disponible,
       img: p.img || `https://via.placeholder.com/400x300?text=${encodeURIComponent(p.nombre)}`,
+      img2: p.img2 || null,
       descripcion: p.descripcion || '',
       // Costo/cantidad: solo para métricas del admin. NUNCA se envían al
       // catálogo público (ver el "sanear" antes de responder /api/products).
