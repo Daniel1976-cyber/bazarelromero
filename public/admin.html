@@ -322,7 +322,21 @@
       <p class="upload-status" id="uploadStatus"></p>
       <input type="hidden" id="img" value="" />
 
-      <textarea id="descripcion" placeholder="Descripción (opcional)"></textarea>
+            <p style="font-size:.85rem; color:#64748b; margin-bottom:.5rem;">Segunda imagen (opcional, para vista detallada):</p>
+      <div id="dropzone2" class="dropzone">
+        <div id="dropzoneEmpty2">
+          📷 Arrastra o haz clic para la segunda imagen
+          <input id="fileInput2" type="file" accept="image/*" />
+        </div>
+        <div id="dropzonePreviewWrap2" style="display:none;">
+          <img id="dropzonePreview2" class="dropzone-preview" src="" alt="preview" />
+        </div>
+      </div>
+      <button type="button" id="removeImgBtn2" class="dropzone-remove" style="display:none;" onclick="quitarImagen2(event)">Quitar imagen 2</button>
+      <p class="upload-status" id="uploadStatus2"></p>
+      <input type="hidden" id="img2" value="" />
+
+      <textarea id="descripcion" placeholder="Descripción detallada (ej: Medidas, características, ideal para...)" style="min-height: 120px;"></textarea>
 
       <div style="display:flex; gap:.5rem;">
         <input id="costo" type="number" step="0.01" placeholder="Costo (opcional)" style="flex:1; min-width:0;" />
@@ -770,7 +784,14 @@
       }
       showView('formProducto');
     }
-
+        if (p.img2) {
+          document.getElementById('img2').value = p.img2;
+          document.getElementById('dropzonePreview2').src = p.img2;
+          document.getElementById('dropzoneEmpty2').style.display = 'none';
+          document.getElementById('dropzonePreviewWrap2').style.display = 'block';
+          document.getElementById('removeImgBtn2').style.display = 'inline-block';
+          document.getElementById('dropzone2').classList.add('has-image');
+        }
     async function guardarProducto() {
       if (!document.getElementById('img').value) {
         document.getElementById('productoMsg').textContent = 'Sube una imagen antes de guardar ⚠️';
@@ -785,6 +806,7 @@
         categoria: document.getElementById('categoria').value,
         precio: parseFloat(document.getElementById('precio').value),
         img: document.getElementById('img').value,
+        img2: document.getElementById('img2').value,
         descripcion: document.getElementById('descripcion').value,
         disponible: document.getElementById('disponible').checked,
         costo: document.getElementById('costo').value === '' ? '' : parseFloat(document.getElementById('costo').value),
@@ -907,7 +929,73 @@
       dropzone.classList.remove('has-image');
       uploadStatus.textContent = '';
     }
+        function quitarImagen2(e) {
+      if (e) e.stopPropagation();
+      document.getElementById('img2').value = '';
+      document.getElementById('dropzonePreview2').src = '';
+      document.getElementById('fileInput2').value = '';
+      document.getElementById('dropzoneEmpty2').style.display = 'block';
+      document.getElementById('dropzonePreviewWrap2').style.display = 'none';
+      document.getElementById('removeImgBtn2').style.display = 'none';
+      document.getElementById('dropzone2').classList.remove('has-image');
+      document.getElementById('uploadStatus2').textContent = '';
+    }
 
+    document.getElementById('fileInput2').addEventListener('change', (e) => {
+      if (e.target.files[0]) subirImagen2(e.target.files[0]);
+    });
+    
+    const dropzone2 = document.getElementById('dropzone2');
+    ['dragenter', 'dragover'].forEach((evt) =>
+      dropzone2.addEventListener(evt, (e) => { e.preventDefault(); dropzone2.classList.add('dragover'); })
+    );
+    ['dragleave', 'drop'].forEach((evt) =>
+      dropzone2.addEventListener(evt, (e) => { e.preventDefault(); dropzone2.classList.remove('dragover'); })
+    );
+    dropzone2.addEventListener('drop', (e) => {
+      const file = e.dataTransfer.files[0];
+      if (file) subirImagen2(file);
+    });
+
+    async function subirImagen2(file) {
+      if (!file.type.startsWith('image/')) {
+        document.getElementById('uploadStatus2').textContent = 'No es una imagen ⚠️';
+        document.getElementById('uploadStatus2').style.color = '#dc2626';
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        document.getElementById('uploadStatus2').textContent = 'Supera 5MB ⚠️';
+        document.getElementById('uploadStatus2').style.color = '#dc2626';
+        return;
+      }
+
+      document.getElementById('uploadStatus2').style.color = '#64748b';
+      document.getElementById('uploadStatus2').textContent = 'Subiendo imagen 2...';
+
+      try {
+        const compressed = await comprimirImagen(file);
+        const imageBase64 = await fileToBase64(compressed);
+        const res = await fetch('/api/admin/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+          body: JSON.stringify({ imageBase64, filename: compressed.name, mimeType: compressed.type }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al subir');
+
+        document.getElementById('img2').value = data.url;
+        document.getElementById('dropzonePreview2').src = data.url;
+        document.getElementById('dropzoneEmpty2').style.display = 'none';
+        document.getElementById('dropzonePreviewWrap2').style.display = 'block';
+        document.getElementById('removeImgBtn2').style.display = 'inline-block';
+        dropzone2.classList.add('has-image');
+        document.getElementById('uploadStatus2').style.color = '#16a34a';
+        document.getElementById('uploadStatus2').textContent = 'Imagen 2 lista ✅';
+      } catch (err) {
+        document.getElementById('uploadStatus2').style.color = '#dc2626';
+        document.getElementById('uploadStatus2').textContent = err.message;
+      }
+    }
     fileInput.addEventListener('change', (e) => {
       if (e.target.files[0]) subirImagen(e.target.files[0]);
     });

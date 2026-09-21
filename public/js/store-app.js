@@ -335,19 +335,21 @@ function formatTotal(totalUsd, totalCup) {
 // ─── Tarjeta de producto (usada por index.html y search.html) ────────────
 function renderProductCard(p) {
   const nombreSeguro = escapeHtml(p.nombre);
+  const productoJson = jsonParaAtributo(p);
   return `
-    <div class="product-card">
+    <div class="product-card" onclick="StoreApp.openProductModal(${productoJson})" style="cursor: pointer;">
       <div class="img-wrap">
         <img src="${p.img}" alt="${nombreSeguro}" loading="lazy" />
       </div>
       <div class="body">
         <div>${nombreSeguro}</div>
         <div class="price">${formatPrecio(p.precio_usd, p.precio_cup)}</div>
-        <button onclick='StoreApp.addToCart(${jsonParaAtributo(p)})' aria-label="Agregar ${nombreSeguro} al carrito">Agregar</button>
+        <button onclick="event.stopPropagation(); StoreApp.addToCart(${productoJson})" aria-label="Agregar ${nombreSeguro} al carrito">Agregar</button>
       </div>
     </div>
   `;
 }
+
 
 // Skeleton screens: se muestran mientras se espera la respuesta real del
 // catálogo, en vez de un texto plano "Cargando..." — se percibe más rápido.
@@ -507,6 +509,56 @@ function setupAutocomplete(inputEl, dropdownEl, getProductos, onSelect) {
   });
 }
 
+// ─── Modal de Detalle de Producto ──────────────────────────────────────
+function openProductModal(p) {
+  if (document.getElementById('productModal')) return;
+
+  const nombreSeguro = escapeHtml(p.nombre);
+  // Convierte saltos de línea en <br> para que se vea bien el texto
+  const descSegura = escapeHtml(p.descripcion).replace(/\n/g, '<br>');
+  
+  const img2Html = p.img2 
+    ? `<div class="modal-img-wrap"><img src="${p.img2}" alt="Vista adicional de ${nombreSeguro}" loading="lazy" /></div>` 
+    : '';
+
+  const modalHtml = `
+    <div id="productModal" class="modal-overlay" onclick="StoreApp.closeProductModal()">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <button class="modal-close" onclick="StoreApp.closeProductModal()" aria-label="Cerrar">&times;</button>
+        
+        <div class="modal-images">
+          <div class="modal-img-wrap">
+            <img src="${p.img}" alt="${nombreSeguro}" />
+          </div>
+          ${img2Html}
+        </div>
+        
+        <div class="modal-body">
+          <h2>${nombreSeguro}</h2>
+          <div class="price modal-price">${formatPrecio(p.precio_usd, p.precio_cup)}</div>
+          
+          ${p.descripcion ? `<div class="modal-description">${descSegura}</div>` : ''}
+          
+          <button class="modal-add-cart" onclick="StoreApp.addToCart(${jsonParaAtributo(p)}); StoreApp.closeProductModal();">
+            Agregar al carrito
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  document.body.style.overflow = 'hidden'; // Evitar scroll de fondo
+}
+
+function closeProductModal() {
+  const modal = document.getElementById('productModal');
+  if (modal) {
+    modal.remove();
+    document.body.style.overflow = ''; // Restaurar scroll
+  }
+}
+
 window.StoreApp = {
   initStore,
   addToCart,
@@ -528,4 +580,6 @@ window.StoreApp = {
   inyectarSchemaProducto,
   escapeHtml,
   jsonParaAtributo,
+  openProductModal,
+  closeProductModal,
 };
