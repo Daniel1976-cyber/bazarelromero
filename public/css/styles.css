@@ -279,7 +279,7 @@ footer a { color: #d1d5db; }
   border-radius: 8px;
   object-fit: contain;
   background: #fff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #f05f5f;
 }
 
 .modal-body { padding: 1.5rem; }
@@ -299,7 +299,7 @@ footer a { color: #d1d5db; }
 }
 
 .modal-description {
-  background: #f1f5f9;
+  background: #e51515;
   padding: 1.25rem;
   border-radius: 8px;
   margin-bottom: 1.5rem;
@@ -313,7 +313,7 @@ footer a { color: #d1d5db; }
   width: 100%;
   padding: 1rem;
   background: var(--color-primario, #0f766e);
-  color: white;
+  color: rgb(239, 39, 39);
   border: none;
   border-radius: 8px;
   font-size: 1.05rem;
