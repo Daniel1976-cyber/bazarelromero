@@ -96,25 +96,6 @@
     .post-save { display: none; gap: .5rem; margin-top: .75rem; }
     .post-save button { flex: 1; }
     .post-save .secundario { background: white; color: var(--color-primario); border: 1px solid var(--color-primario); }
-
-    .pedido-row {
-      display: flex; align-items: center; gap: .75rem; background: white;
-      border: 1px solid #e5e7eb; border-radius: .5rem; padding: .6rem .8rem; margin-bottom: .5rem;
-    }
-    .pedido-row .info { flex: 1; min-width: 0; }
-    .pedido-row .info .nombre { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pedido-row .info .meta { font-size: .8rem; color: #64748b; }
-    .pedido-row .acciones { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: flex-end; }
-    .pedido-row .acciones button {
-      font-size: .8rem; padding: .35rem .6rem; border-radius: .4rem; border: 1px solid #cbd5e1;
-      background: white; cursor: pointer; color: #1f2937; font-weight: 600;
-    }
-    .pedido-row .acciones button.btn-concretar { border-color: #16a34a; color: #16a34a; }
-    .pedido-row .acciones button.btn-concretar:hover { background: #16a34a; color: white; }
-    .pedido-row .acciones button.btn-no-concretar { border-color: #dc2626; color: #dc2626; }
-    .pedido-row .acciones button.btn-no-concretar:hover { background: #dc2626; color: white; }
-    .pedido-row .acciones button.btn-pendiente { border-color: #f59e0b; color: #f59e0b; }
-    .pedido-row .acciones button.btn-pendiente:hover { background: #f59e0b; color: white; }
   </style>
 </head>
 <body>
@@ -160,10 +141,6 @@
       <button class="accion-btn" onclick="abrirListaCategorias()">
         🏷️ Categorías
         <span class="desc">Oculta las que no uses, para simplificar el menú del cliente</span>
-      </button>
-      <button class="accion-btn" onclick="abrirListaPedidos()">
-        📦 Pedidos
-        <span class="desc">Marca cuáles se concretaron para calcular tu comisión</span>
       </button>
       <button class="accion-btn" onclick="abrirInventario()">
         📊 Inventario y Utilidad
@@ -223,28 +200,6 @@
       </p>
       <div id="listaCategoriasContenedor">Cargando...</div>
       <p id="categoriaToggleMsg" style="font-size:.85rem;"></p>
-    </div>
-  </div>
-
-  <!-- PEDIDOS -->
-  <div id="pedidos" class="view">
-    <div class="panel" style="max-width: 720px;">
-      <h3>Pedidos</h3>
-      <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
-        <div class="stat-card">
-          <div class="num" id="pedTotal" style="font-size:1.2rem;">–</div>
-          <div class="label">Total registrados</div>
-        </div>
-        <div class="stat-card">
-          <div class="num" id="pedConcretados" style="font-size:1.2rem; color:#16a34a;">–</div>
-          <div class="label">Concretados</div>
-        </div>
-        <div class="stat-card">
-          <div class="num" id="pedPendientes" style="font-size:1.2rem; color:#b45309;">–</div>
-          <div class="label">Pendientes de marcar</div>
-        </div>
-      </div>
-      <div id="pedidosContenedor" style="margin-top: 1rem;">Cargando...</div>
     </div>
   </div>
 
@@ -322,21 +277,7 @@
       <p class="upload-status" id="uploadStatus"></p>
       <input type="hidden" id="img" value="" />
 
-            <p style="font-size:.85rem; color:#64748b; margin-bottom:.5rem;">Segunda imagen (opcional, para vista detallada):</p>
-      <div id="dropzone2" class="dropzone">
-        <div id="dropzoneEmpty2">
-          📷 Arrastra o haz clic para la segunda imagen
-          <input id="fileInput2" type="file" accept="image/*" />
-        </div>
-        <div id="dropzonePreviewWrap2" style="display:none;">
-          <img id="dropzonePreview2" class="dropzone-preview" src="" alt="preview" />
-        </div>
-      </div>
-      <button type="button" id="removeImgBtn2" class="dropzone-remove" style="display:none;" onclick="quitarImagen2(event)">Quitar imagen 2</button>
-      <p class="upload-status" id="uploadStatus2"></p>
-      <input type="hidden" id="img2" value="" />
-
-      <textarea id="descripcion" placeholder="Descripción detallada (ej: Medidas, características, ideal para...)" style="min-height: 120px;"></textarea>
+      <textarea id="descripcion" placeholder="Descripción (opcional)"></textarea>
 
       <div style="display:flex; gap:.5rem;">
         <input id="costo" type="number" step="0.01" placeholder="Costo (opcional)" style="flex:1; min-width:0;" />
@@ -598,89 +539,6 @@
       }
     }
 
-    // ─── Pedidos ─────────────────────────────────────────────────────────
-    let pedidosCache = [];
-    let filtroPedidosActual = 'todos';
-
-    async function abrirListaPedidos() {
-      showView('pedidos');
-      document.getElementById('pedidosContenedor').innerHTML = 'Cargando...';
-      const res = await fetch('/api/admin/pedidos', { headers: { 'x-admin-token': token } });
-      if (res.status === 401) { logout(); return; }
-      const data = await res.json();
-
-      pedidosCache = data.map((p) => ({
-        ...p,
-        id: String(p.id),
-        fecha: p.fecha ? p.fecha.replace(' ', 'T') : null,
-        total_usd: p.total_usd != null ? Number(p.total_usd) : null,
-        total_cup: p.total_cup != null ? Number(p.total_cup) : null,
-        items: Array.isArray(p.items) ? p.items : [],
-      }));
-
-      renderListaPedidos();
-    }
-
-    function filtrarPedidos(filtro) {
-      filtroPedidosActual = filtro;
-      document.querySelectorAll('#pedidos .filtro-lista button').forEach((b) => b.classList.remove('active'));
-      document.querySelector(`#pedidos .filtro-lista button[data-filtro="${filtro}"]`)?.classList.add('active');
-      renderListaPedidos();
-    }
-
-    function renderListaPedidos() {
-      let lista = [...pedidosCache];
-      if (filtroPedidosActual !== 'todos') {
-        lista = lista.filter((p) => p.estado === filtroPedidosActual);
-      }
-      lista.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-
-      const contenedor = document.getElementById('pedidosContenedor');
-      if (!lista.length) {
-        contenedor.innerHTML = '<p style="color:#64748b;">No hay pedidos para este filtro.</p>';
-      } else {
-        contenedor.innerHTML = lista.map((p) => {
-          const fecha = p.fecha ? new Date(p.fecha).toLocaleString('es-ES') : '–';
-          const items = p.items.length;
-          const total = p.total_usd != null ? `$${p.total_usd.toFixed(2)}` : '–';
-          return `
-          <div class="pedido-row">
-            <div class="info">
-              <div class="nombre">Pedido #${p.id.slice(0, 8)}</div>
-              <div class="meta">${fecha} · ${items} ítem(s) · Total: ${total}</div>
-            </div>
-            <div class="acciones">
-              <button class="btn-concretar" onclick="togglePedidoEstado('${p.id}', 'concretado')">Concretado</button>
-              <button class="btn-no-concretar" onclick="togglePedidoEstado('${p.id}', 'no_concretado')">No concretado</button>
-              <button class="btn-pendiente" onclick="togglePedidoEstado('${p.id}', 'pendiente')">Pendiente</button>
-            </div>
-          </div>
-          `;
-        }).join('');
-      }
-
-      const total = pedidosCache.length;
-      const concretados = pedidosCache.filter((p) => p.estado === 'concretado').length;
-      const pendientes = pedidosCache.filter((p) => p.estado === 'pendiente').length;
-      document.getElementById('pedTotal').textContent = total;
-      document.getElementById('pedConcretados').textContent = concretados;
-      document.getElementById('pedPendientes').textContent = pendientes;
-    }
-
-    async function togglePedidoEstado(id, nuevoEstado) {
-      const res = await fetch(`/api/admin/pedidos/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
-        body: JSON.stringify({ estado: nuevoEstado }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        alert(data.error || 'Error al actualizar el pedido');
-        return;
-      }
-      await abrirListaPedidos();
-    }
-
     // ─── Inventario y Utilidad ─────────────────────────────────────────────
     function formatMonedaInterna(valor) {
       if (valor === null || valor === undefined || isNaN(valor)) return '–';
@@ -784,14 +642,7 @@
       }
       showView('formProducto');
     }
-        if (p.img2) {
-          document.getElementById('img2').value = p.img2;
-          document.getElementById('dropzonePreview2').src = p.img2;
-          document.getElementById('dropzoneEmpty2').style.display = 'none';
-          document.getElementById('dropzonePreviewWrap2').style.display = 'block';
-          document.getElementById('removeImgBtn2').style.display = 'inline-block';
-          document.getElementById('dropzone2').classList.add('has-image');
-        }
+
     async function guardarProducto() {
       if (!document.getElementById('img').value) {
         document.getElementById('productoMsg').textContent = 'Sube una imagen antes de guardar ⚠️';
@@ -806,7 +657,6 @@
         categoria: document.getElementById('categoria').value,
         precio: parseFloat(document.getElementById('precio').value),
         img: document.getElementById('img').value,
-        img2: document.getElementById('img2').value,
         descripcion: document.getElementById('descripcion').value,
         disponible: document.getElementById('disponible').checked,
         costo: document.getElementById('costo').value === '' ? '' : parseFloat(document.getElementById('costo').value),
@@ -848,33 +698,6 @@
       });
     }
 
-    async function comprimirImagen(file, maxDimension = 1280, calidad = 0.82) {
-      try {
-          const bitmap = await createImageBitmap(file);
-          let { width, height } = bitmap;
-
-          if (width > maxDimension || height > maxDimension) {
-            const escala = maxDimension / Math.max(width, height);
-            width = Math.round(width * escala);
-            height = Math.round(height * escala);
-          }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
-
-          const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', calidad));
-          if (!blob) throw new Error('toBlob devolvió null');
-
-          const nombreBase = file.name.replace(/\.[^/.]+$/, '');
-          return new File([blob], `${nombreBase}.jpg`, { type: 'image/jpeg' });
-        } catch (e) {
-          console.warn('No se pudo comprimir, se sube el original:', e.message);
-          return file;
-        }
-  }    
-
     async function subirImagen(file) {
       if (!file.type.startsWith('image/')) {
         uploadStatus.textContent = 'Ese archivo no es una imagen ⚠️';
@@ -892,7 +715,6 @@
       uploadStatus.textContent = 'Subiendo imagen...';
 
       try {
-        file = await comprimirImagen(file);
         const imageBase64 = await fileToBase64(file);
         const res = await fetch('/api/admin/upload', {
           method: 'POST',
@@ -929,73 +751,7 @@
       dropzone.classList.remove('has-image');
       uploadStatus.textContent = '';
     }
-        function quitarImagen2(e) {
-      if (e) e.stopPropagation();
-      document.getElementById('img2').value = '';
-      document.getElementById('dropzonePreview2').src = '';
-      document.getElementById('fileInput2').value = '';
-      document.getElementById('dropzoneEmpty2').style.display = 'block';
-      document.getElementById('dropzonePreviewWrap2').style.display = 'none';
-      document.getElementById('removeImgBtn2').style.display = 'none';
-      document.getElementById('dropzone2').classList.remove('has-image');
-      document.getElementById('uploadStatus2').textContent = '';
-    }
 
-    document.getElementById('fileInput2').addEventListener('change', (e) => {
-      if (e.target.files[0]) subirImagen2(e.target.files[0]);
-    });
-    
-    const dropzone2 = document.getElementById('dropzone2');
-    ['dragenter', 'dragover'].forEach((evt) =>
-      dropzone2.addEventListener(evt, (e) => { e.preventDefault(); dropzone2.classList.add('dragover'); })
-    );
-    ['dragleave', 'drop'].forEach((evt) =>
-      dropzone2.addEventListener(evt, (e) => { e.preventDefault(); dropzone2.classList.remove('dragover'); })
-    );
-    dropzone2.addEventListener('drop', (e) => {
-      const file = e.dataTransfer.files[0];
-      if (file) subirImagen2(file);
-    });
-
-    async function subirImagen2(file) {
-      if (!file.type.startsWith('image/')) {
-        document.getElementById('uploadStatus2').textContent = 'No es una imagen ⚠️';
-        document.getElementById('uploadStatus2').style.color = '#dc2626';
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        document.getElementById('uploadStatus2').textContent = 'Supera 5MB ⚠️';
-        document.getElementById('uploadStatus2').style.color = '#dc2626';
-        return;
-      }
-
-      document.getElementById('uploadStatus2').style.color = '#64748b';
-      document.getElementById('uploadStatus2').textContent = 'Subiendo imagen 2...';
-
-      try {
-        const compressed = await comprimirImagen(file);
-        const imageBase64 = await fileToBase64(compressed);
-        const res = await fetch('/api/admin/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
-          body: JSON.stringify({ imageBase64, filename: compressed.name, mimeType: compressed.type }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Error al subir');
-
-        document.getElementById('img2').value = data.url;
-        document.getElementById('dropzonePreview2').src = data.url;
-        document.getElementById('dropzoneEmpty2').style.display = 'none';
-        document.getElementById('dropzonePreviewWrap2').style.display = 'block';
-        document.getElementById('removeImgBtn2').style.display = 'inline-block';
-        dropzone2.classList.add('has-image');
-        document.getElementById('uploadStatus2').style.color = '#16a34a';
-        document.getElementById('uploadStatus2').textContent = 'Imagen 2 lista ✅';
-      } catch (err) {
-        document.getElementById('uploadStatus2').style.color = '#dc2626';
-        document.getElementById('uploadStatus2').textContent = err.message;
-      }
-    }
     fileInput.addEventListener('change', (e) => {
       if (e.target.files[0]) subirImagen(e.target.files[0]);
     });
