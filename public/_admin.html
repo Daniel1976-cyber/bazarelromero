@@ -142,6 +142,10 @@
         🏷️ Categorías
         <span class="desc">Oculta las que no uses, para simplificar el menú del cliente</span>
       </button>
+      <button class="accion-btn" onclick="abrirListaPedidos()">
+        📦 Pedidos
+        <span class="desc">Marca cuáles se concretaron para calcular tu comisión</span>
+      </button>
       <button class="accion-btn" onclick="abrirInventario()">
         📊 Inventario y Utilidad
         <span class="desc">Costo, cantidad en stock y utilidad — solo visible para ti</span>
@@ -200,6 +204,28 @@
       </p>
       <div id="listaCategoriasContenedor">Cargando...</div>
       <p id="categoriaToggleMsg" style="font-size:.85rem;"></p>
+    </div>
+  </div>
+
+  <!-- PEDIDOS -->
+  <div id="pedidos" class="view">
+    <div class="panel" style="max-width: 720px;">
+      <h3>Pedidos</h3>
+      <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stat-card">
+          <div class="num" id="pedTotal" style="font-size:1.2rem;">–</div>
+          <div class="label">Total registrados</div>
+        </div>
+        <div class="stat-card">
+          <div class="num" id="pedConcretados" style="font-size:1.2rem; color:#16a34a;">–</div>
+          <div class="label">Concretados</div>
+        </div>
+        <div class="stat-card">
+          <div class="num" id="pedPendientes" style="font-size:1.2rem; color:#b45309;">–</div>
+          <div class="label">Pendientes de marcar</div>
+        </div>
+      </div>
+      <div id="pedidosContenedor">Cargando...</div>
     </div>
   </div>
 
@@ -545,6 +571,63 @@
       return config.soloCup ? `${StoreApp.formatMoney(valor)} CUP` : `$${StoreApp.formatMoney(valor)}`;
     }
 
+    // ─── Pedidos (registrados automáticamente desde el carrito) ──────────────
+    async function abrirListaPedidos() {
+      showView('pedidos');
+      const res = await fetch('/api/admin/pedidos', { headers: { 'x-admin-token': token } });
+      if (res.status === 401) { logout(); return; }
+      const lista = await res.json();
+      renderPedidos(lista);
+    }
+
+    function renderPedidos(lista) {
+      const total = lista.length;
+      const concretados = lista.filter((p) => p.estado === 'concretado').length;
+      const pendientes = lista.filter((p) => p.estado === 'pendiente').length;
+
+      document.getElementById('pedTotal').textContent = total;
+      document.getElementById('pedConcretados').textContent = concretados;
+      document.getElementById('pedPendientes').textContent = pendientes;
+
+      const contenedor = document.getElementById('pedidosContenedor');
+      if (!lista.length) { contenedor.innerHTML = '<p>Todavía no hay pedidos registrados.</p>'; return; }
+
+      contenedor.innerHTML = lista.map((p) => {
+        const fecha = new Date(p.fecha).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' });
+        const resumenItems = p.items.map((i) => `${i.nombre} x${i.cantidad}`).join(', ');
+        const montoUsd = p.total_usd != null ? `$${Number(p.total_usd).toFixed(2)}` : '';
+        const montoCup = p.total_cup != null ? `${Number(p.total_cup).toFixed(2)} CUP` : '';
+        const monto = [montoUsd, montoCup].filter(Boolean).join(' / ');
+
+        const badgeClase = p.estado === 'concretado' ? 'si' : (p.estado === 'no_concretado' ? 'no' : '');
+        const badgeTexto = p.estado === 'concretado' ? 'Concretado' : (p.estado === 'no_concretado' ? 'No concretado' : 'Pendiente');
+
+        return `
+          <div class="producto-row">
+            <div class="info">
+              <div class="nombre">${fecha} — ${monto}</div>
+              <div class="meta">${resumenItems}
+                <span class="badge ${badgeClase}">${badgeTexto}</span>
+              </div>
+            </div>
+            <div class="acciones">
+              <button class="btn-mostrar" onclick="marcarPedido(${p.id}, 'concretado')">✅ Concretado</button>
+              <button class="btn-ocultar" onclick="marcarPedido(${p.id}, 'no_concretado')">❌ No concretado</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function marcarPedido(id, estado) {
+      const res = await fetch(`/api/admin/pedidos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify({ estado }),
+      });
+      if (res.ok) abrirListaPedidos();
+    }
+
     async function abrirInventario() {
       showView('inventario');
       await cargarProductosAdmin();
@@ -698,6 +781,36 @@
       });
     }
 
+    // Comprime y redimensiona la imagen en el propio navegador antes de
+    // subirla. Si algo falla, devuelve el archivo original tal cual (nunca
+    // bloquea la subida). Reduce mucho el consumo de egress de Supabase.
+    async function comprimirImagen(file, maxDimension = 1280, calidad = 0.82) {
+      try {
+        const bitmap = await createImageBitmap(file);
+        let { width, height } = bitmap;
+
+        if (width > maxDimension || height > maxDimension) {
+          const escala = maxDimension / Math.max(width, height);
+          width = Math.round(width * escala);
+          height = Math.round(height * escala);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', calidad));
+        if (!blob) throw new Error('toBlob devolvió null');
+
+        const nombreBase = file.name.replace(/\.[^/.]+$/, '');
+        return new File([blob], `${nombreBase}.jpg`, { type: 'image/jpeg' });
+      } catch (e) {
+        console.warn('No se pudo comprimir, se sube el original:', e.message);
+        return file;
+      }
+    }
+
     async function subirImagen(file) {
       if (!file.type.startsWith('image/')) {
         uploadStatus.textContent = 'Ese archivo no es una imagen ⚠️';
@@ -712,6 +825,8 @@
 
       guardarBtn.disabled = true;
       uploadStatus.style.color = '#64748b';
+      uploadStatus.textContent = 'Comprimiendo imagen...';
+      file = await comprimirImagen(file);
       uploadStatus.textContent = 'Subiendo imagen...';
 
       try {

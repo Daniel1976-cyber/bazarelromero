@@ -95,3 +95,20 @@ on conflict (id) do nothing;
 -- pasar por rutas del backend que usen supabaseService (SUPABASE_SERVICE_ROLE),
 -- nunca el cliente `supabase` (anon key). Con RLS activo, un insert/update
 -- hecho con la anon key será rechazado por Supabase con un error de política.
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- PEDIDOS: se registran solos cada vez que un cliente da "Enviar pedido
+-- por WhatsApp" — permite calcular comisiones/ventas sin depender de que
+-- el dueño avise manualmente. Es 100% interna, nunca la lee el cliente.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists pedidos (
+  id bigint generated always as identity primary key,
+  fecha timestamptz not null default now(),
+  items jsonb not null,
+  total_usd numeric,
+  total_cup numeric,
+  estado text not null default 'pendiente', -- 'pendiente' | 'concretado' | 'no_concretado'
+  actualizado_en timestamptz
+);
+
+alter table pedidos enable row level security;

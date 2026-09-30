@@ -28,11 +28,21 @@ function parseCategories(raw) {
   }
 }
 
+// Acepta una URL completa (https://...) o una ruta local. Si es una ruta
+// local y no empieza con "/", se la agrega — evita URLs rotas tipo
+// "https://mi-tienda.vercel.applogo.webp" cuando alguien escribe
+// STORE_LOGO_PATH="logo.webp" en vez de "/logo.webp".
+function normalizarRutaLogo(valor) {
+  if (!valor) return '/logo.png';
+  if (/^https?:\/\//.test(valor)) return valor;
+  return valor.startsWith('/') ? valor : `/${valor}`;
+}
+
 export const storeConfig = {
   nombre: process.env.STORE_NAME || 'Mi Tienda',
   slug: process.env.STORE_SLUG || 'mi-tienda',
   slogan: process.env.STORE_SLOGAN || '',
-  logo: process.env.STORE_LOGO_PATH || '/logo.jpg',
+  logo: normalizarRutaLogo(process.env.STORE_LOGO_PATH),
   colores: {
     primario: process.env.STORE_COLOR_PRIMARY || '#0f766e',
     acento: process.env.STORE_COLOR_ACCENT || '#f59e0b',

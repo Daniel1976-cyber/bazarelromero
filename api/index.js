@@ -226,6 +226,16 @@ app.post('/api/admin/products', verifyAdmin, async (req, res) => {
   res.json(data);
 });
 
+// Extrae la ruta dentro del bucket a partir de la URL pública completa,
+// para poder borrar el archivo viejo del Storage cuando se reemplaza.
+function extraerRutaStorage(urlCompleta, bucket) {
+  if (!urlCompleta) return null;
+  const marcador = `/public/${bucket}/`;
+  const idx = urlCompleta.indexOf(marcador);
+  if (idx === -1) return null;
+  return urlCompleta.slice(idx + marcador.length);
+}
+
 app.put('/api/admin/products/:id', verifyAdmin, async (req, res) => {
   if (!supabaseService) {
     return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado en esta tienda' });
@@ -249,11 +259,30 @@ app.put('/api/admin/products/:id', verifyAdmin, async (req, res) => {
     return res.status(400).json({ error: 'No hay campos para actualizar' });
   }
 
+  // Si se va a reemplazar la imagen, guardamos cuál era la vieja ANTES de
+  // sobrescribirla, para poder borrarla del Storage después.
+  let imagenVieja = null;
+  if (cambios.img !== undefined) {
+    const { data: actual } = await supabaseService.from('productos').select('img').eq('id', id).single();
+    imagenVieja = actual?.img || null;
+  }
+
   const { data, error } = await supabaseService.from('productos')
     .update(cambios)
     .eq('id', id).select();
   if (error) return res.status(500).json({ error: error.message });
   if (!data || !data.length) return res.status(404).json({ error: 'Producto no encontrado' });
+
+  // Borrar la imagen vieja del Storage, solo si de verdad cambió. Es
+  // "best-effort": si falla el borrado no tumbamos la respuesta — el
+  // producto ya se guardó bien, esto es solo limpieza.
+  if (imagenVieja && imagenVieja !== cambios.img) {
+    const ruta = extraerRutaStorage(imagenVieja, storeConfig.supabase.bucket);
+    if (ruta) {
+      supabaseService.storage.from(storeConfig.supabase.bucket).remove([ruta])
+        .catch((e) => console.error('No se pudo borrar la imagen vieja:', e.message));
+    }
+  }
 
   await cargarProductos();
   res.json(data);
@@ -285,7 +314,10 @@ app.post('/api/admin/upload', verifyAdmin, async (req, res) => {
 
     const { error } = await supabaseService.storage
       .from(storeConfig.supabase.bucket)
-      .upload(finalName, buffer, { contentType: mimeType || 'image/jpeg' });
+      .upload(finalName, buffer, {
+        contentType: mimeType || 'image/jpeg',
+        cacheControl: '31536000', // 1 año — seguro porque cada foto nueva tiene nombre único
+      });
     if (error) return res.status(500).json({ error: error.message });
 
     const { data: urlData } = supabase.storage.from(storeConfig.supabase.bucket).getPublicUrl(finalName);
@@ -365,6 +397,40 @@ app.put('/api/admin/categories/:id', verifyAdmin, async (req, res) => {
   res.json(data[0]);
 });
 
+// ─── Pedidos (registrados automáticamente desde el checkout) ─────────────
+app.post('/api/pedidos', async (req, res) => {
+  if (!supabaseService) return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado' });
+  const { items, totalUsd, totalCup } = req.body;
+  if (!Array.isArray(items) || !items.length) {
+    return res.status(400).json({ error: 'El pedido no tiene productos' });
+  }
+  const { error } = await supabaseService.from('pedidos').insert([{
+    items, total_usd: totalUsd ?? null, total_cup: totalCup ?? null, estado: 'pendiente',
+  }]);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+});
+
+app.get('/api/admin/pedidos', verifyAdmin, async (req, res) => {
+  if (!supabaseService) return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado' });
+  const { data, error } = await supabaseService.from('pedidos').select('*').order('fecha', { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+app.put('/api/admin/pedidos/:id', verifyAdmin, async (req, res) => {
+  if (!supabaseService) return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado' });
+  const { estado } = req.body;
+  if (!['pendiente', 'concretado', 'no_concretado'].includes(estado)) {
+    return res.status(400).json({ error: 'Estado inválido' });
+  }
+  const { error } = await supabaseService.from('pedidos')
+    .update({ estado, actualizado_en: new Date().toISOString() })
+    .eq('id', req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+});
+
 // ─── Archivos estáticos ────────────────────────────────────────────────────
 const publicDir = path.join(projectRoot, 'public');
 
@@ -385,9 +451,10 @@ function renderPaginaConMeta(nombreArchivo, req) {
   const titulo = storeConfig.nombre;
   const descripcion = (storeConfig.slogan || '').trim()
     || `Catálogo de ${storeConfig.nombre}. Haz tu pedido fácil y rápido por WhatsApp.`;
+  const logoConBarra = storeConfig.logo.startsWith('/') ? storeConfig.logo : `/${storeConfig.logo}`;
   const logoAbsoluto = /^https?:\/\//.test(storeConfig.logo)
     ? storeConfig.logo
-    : `${req.protocol}://${req.get('host')}${storeConfig.logo}`;
+    : `${req.protocol}://${req.get('host')}${logoConBarra}`;
 
   // search.html cumple dos roles distintos: ficha de un producto puntual
   // (?id=, sí vale la pena que Google la indexe) o resultados de una
@@ -425,6 +492,7 @@ function renderPaginaConMeta(nombreArchivo, req) {
 }
 
 app.get('/', (req, res) => res.send(renderPaginaConMeta('index.html', req)));
+app.get('/index.html', (req, res) => res.send(renderPaginaConMeta('index.html', req)));
 app.get('/search.html', (req, res) => res.send(renderPaginaConMeta('search.html', req)));
 app.get('/admin.html', (req, res) => res.send(renderPaginaConMeta('admin.html', req)));
 
