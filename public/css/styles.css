@@ -144,8 +144,8 @@ header .header-promo {
   }
 
   header img.logo-round {
-    height: 75px;
-    width: 75px;
+    height: 110px;
+    width: 110px;
     flex-shrink: 0;
   }
 
