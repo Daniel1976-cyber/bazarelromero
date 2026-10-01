@@ -20,20 +20,6 @@ async function initStore() {
   return configRes;
 }
 
-function getLocalStorageValue(key) {
-  try {
-    return localStorage.getItem(key);
-  } catch (e) {
-    return null;
-  }
-}
-
-function resolveHeaderPromo(config) {
-  const override = getLocalStorageValue('storeHeaderPromo');
-  if (override !== null && override !== undefined) return override.trim();
-  return (config?.headerPromo || '').trim();
-}
-
 function applyBranding(config) {
   // En admin.html el título del servidor trae "· Admin" al final —
   // lo mantenemos aquí en vez de perderlo cuando JS actualiza el título.
@@ -63,7 +49,7 @@ function applyBranding(config) {
   document.querySelectorAll('[data-store="nombre"]').forEach((el) => (el.textContent = config.nombre));
   document.querySelectorAll('[data-store="slogan"]').forEach((el) => (el.textContent = config.slogan));
 
-  const promoText = resolveHeaderPromo(config);
+  const promoText = (config?.headerPromo || '').trim();
   document.querySelectorAll('[data-store="header-promo"]').forEach((el) => {
     if (!promoText) {
       el.textContent = '';

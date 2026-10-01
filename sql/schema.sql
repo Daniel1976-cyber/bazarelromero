@@ -28,6 +28,19 @@ create table if not exists categorias (
   activa boolean not null default true  -- el admin puede ocultarla sin borrarla
 );
 
+-- Configuración de la tienda: valores globales que se pueden editar desde
+-- el panel de administración sin tocar .env. Ej.: aviso del header, texto de
+-- promoción, mensaje de cierre, etc.
+create table if not exists config_tienda (
+  key text primary key,
+  value text not null default '',
+  actualizado_en timestamptz not null default now()
+);
+
+insert into config_tienda (key, value)
+values ('header_promo', '')
+on conflict (key) do nothing;
+
 -- Si ya tenías la tabla categorias de antes (sin esta columna), esto la
 -- agrega sin tocar las categorías existentes — todas quedan activas.
 alter table categorias add column if not exists activa boolean not null default true;
@@ -60,6 +73,13 @@ alter table categorias enable row level security;
 do $$ begin
   if not exists (select 1 from pg_policies where tablename = 'categorias' and policyname = 'Lectura pública de categorias') then
     create policy "Lectura pública de categorias" on categorias for select using (true);
+  end if;
+end $$;
+
+alter table config_tienda enable row level security;
+do $$ begin
+  if not exists (select 1 from pg_policies where tablename = 'config_tienda' and policyname = 'Lectura pública de config_tienda') then
+    create policy "Lectura pública de config_tienda" on config_tienda for select using (true);
   end if;
 end $$;
 

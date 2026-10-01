@@ -418,36 +418,34 @@
       return productosCache;
     }
 
-    function getHeaderPromoLocalValue() {
-      try {
-        return localStorage.getItem('storeHeaderPromo') || config?.headerPromo || '';
-      } catch (e) {
-        return config?.headerPromo || '';
-      }
-    }
-
     function abrirHeaderPromo() {
       showView('headerPromoConfig');
-      document.getElementById('headerPromoInput').value = getHeaderPromoLocalValue();
+      document.getElementById('headerPromoInput').value = config?.headerPromo || '';
     }
 
-    function guardarHeaderPromo() {
+    async function guardarHeaderPromo() {
       const input = document.getElementById('headerPromoInput');
       const msg = document.getElementById('headerPromoMsg');
       const texto = input.value.trim();
 
-      if (texto) {
-        localStorage.setItem('storeHeaderPromo', texto);
-        msg.style.color = '#16a34a';
-        msg.textContent = 'Aviso guardado ✅';
-      } else {
-        localStorage.removeItem('storeHeaderPromo');
-        msg.style.color = '#64748b';
-        msg.textContent = 'Aviso ocultado';
+      const res = await fetch('/api/admin/config/header-promo', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify({ value: texto }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        msg.style.color = '#dc2626';
+        msg.textContent = data.error || 'No se pudo guardar la promoción';
+        return;
       }
 
-      const configActual = { ...(config || {}), headerPromo: texto || (config?.headerPromo || '') };
-      applyBranding(configActual);
+      config = { ...(config || {}), headerPromo: data.value || '' };
+      applyBranding(config);
+
+      msg.style.color = '#16a34a';
+      msg.textContent = texto ? 'Aviso guardado ✅' : 'Aviso ocultado';
       showView('home');
     }
 

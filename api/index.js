@@ -112,6 +112,32 @@ async function cargarCategorias() {
 }
 let categoriasListas = cargarCategorias();
 
+let configTienda = {
+  headerPromo: storeConfig.headerPromo || '',
+};
+
+async function cargarConfigTienda() {
+  try {
+    const { data, error } = await supabase.from('config_tienda').select('key, value');
+    if (error) throw error;
+
+    const map = Object.fromEntries((data || []).map((row) => [row.key, row.value]));
+    configTienda = {
+      headerPromo: map.header_promo || storeConfig.headerPromo || '',
+    };
+  } catch (e) {
+    const noExiste = e?.code === '42P01' || /config_tienda|does not exist/i.test(e?.message || '');
+    if (!noExiste) {
+      console.error(`[${storeConfig.nombre}] Error al cargar config_tienda desde Supabase:`, e.message);
+    }
+    configTienda = {
+      headerPromo: storeConfig.headerPromo || '',
+    };
+  }
+}
+
+let configTiendaListas = cargarConfigTienda();
+
 function slugify(texto) {
   return texto
     .trim()
@@ -124,10 +150,42 @@ function slugify(texto) {
 // ─── Config pública (la usan index.html / search.html / admin.html) ──────
 app.get('/api/config', async (req, res) => {
   await categoriasListas;
+  await configTiendaListas;
   // El cliente solo ve las categorías activas — las ocultas no aparecen
   // en los filtros ni en el buscador, para no saturar el menú con
   // categorías que la tienda no usa.
-  res.json({ ...storeConfig.public(), categorias: categorias.filter((c) => c.activa) });
+  res.json({
+    ...storeConfig.public(),
+    headerPromo: configTienda.headerPromo || storeConfig.headerPromo || '',
+    categorias: categorias.filter((c) => c.activa),
+  });
+});
+
+app.get('/api/admin/config', verifyAdmin, async (req, res) => {
+  await configTiendaListas;
+  res.json({ headerPromo: configTienda.headerPromo || '' });
+});
+
+app.put('/api/admin/config/header-promo', verifyAdmin, async (req, res) => {
+  if (!supabaseService) {
+    return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado en esta tienda' });
+  }
+
+  const valor = String(req.body?.value ?? '').trim();
+  try {
+    const { data, error } = await supabaseService
+      .from('config_tienda')
+      .upsert({ key: 'header_promo', value: valor }, { onConflict: 'key' })
+      .select();
+
+    if (error) throw error;
+
+    configTienda.headerPromo = valor;
+    res.json({ success: true, value: valor, row: data?.[0] ?? null });
+  } catch (e) {
+    console.error('[api] Error al guardar header_promo:', e.message);
+    res.status(500).json({ error: e.message || 'No se pudo guardar la promoción' });
+  }
 });
 
 // Admin: TODAS las categorías (activas y ocultas), para poder gestionarlas
