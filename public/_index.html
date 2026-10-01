@@ -33,12 +33,15 @@
   <a href="#contenido-principal" class="skip-link">Saltar al contenido</a>
 
   <header>
-    <img data-store="logo" class="logo-round" src="{{STORE_LOGO}}" alt="{{STORE_TITLE}}" />
-    <div>
-      <div class="store-name" data-store="nombre">{{STORE_TITLE}}</div>
-      <div class="slogan" data-store="slogan"></div>
+    <div class="header-main">
+      <img data-store="logo" class="logo-round" src="{{STORE_LOGO}}" alt="{{STORE_TITLE}}" />
+      <div>
+        <div class="store-name" data-store="nombre">{{STORE_TITLE}}</div>
+        <div class="slogan" data-store="slogan"></div>
+      </div>
+      <span id="exchangeRateDisplay" class="exchange-rate" aria-live="polite">Tasa: --</span>
     </div>
-    <span id="exchangeRateDisplay" class="exchange-rate" aria-live="polite">Tasa: --</span>
+    <div class="header-promo" data-store="header-promo" aria-live="polite" style="display:none;"></div>
   </header>
 
   <form class="search-panel" role="search" onsubmit="event.preventDefault(); StoreApp.submitSearch();">

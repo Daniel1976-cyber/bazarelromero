@@ -42,6 +42,7 @@ export const storeConfig = {
   nombre: process.env.STORE_NAME || 'Mi Tienda',
   slug: process.env.STORE_SLUG || 'mi-tienda',
   slogan: process.env.STORE_SLOGAN || '',
+  headerPromo: process.env.STORE_HEADER_PROMO || '',
   logo: normalizarRutaLogo(process.env.STORE_LOGO_PATH),
   colores: {
     primario: process.env.STORE_COLOR_PRIMARY || '#0f766e',
@@ -99,6 +100,7 @@ export const storeConfig = {
     return {
       nombre: this.nombre,
       slogan: this.slogan,
+      headerPromo: this.headerPromo,
       logo: this.logo,
       colores: this.colores,
       whatsapp: this.whatsapp,

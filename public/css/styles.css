@@ -52,15 +52,36 @@ body { margin: 0; font-family: var(--fuente-cuerpo); color: var(--gris-800); }
 header {
   background: var(--header-gradiente);
   color: white;
-  padding: 1rem 1.5rem;
+  padding: .9rem 1.5rem .75rem;
+}
+header .header-main {
   display: flex;
   align-items: center;
   gap: .75rem;
 }
 header img { height: 40px; }
-header img.logo-round { height: 48px; width: 48px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,.5); }
+header img.logo-round {
+  height: 42px; width: 42px;
+  border-radius: 50%; object-fit: cover;
+  border: 2px solid rgba(255,255,255,.5);
+  flex-shrink: 0;
+}
 header .store-name { font-weight: 700; font-size: 1.1rem; font-family: var(--fuente-titulo); }
 header .slogan { font-size: .8rem; opacity: .85; }
+header .header-promo {
+  display: none;
+  margin-top: .7rem;
+  background: white;
+  color: var(--color-primario);
+  border-radius: .5rem;
+  padding: .4rem .8rem;
+  text-align: center;
+  font-size: .8rem;
+  font-weight: 700;
+  line-height: 1.3;
+  font-family: var(--fuente-titulo);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
+}
 
 .exchange-rate {
   margin-left: auto;

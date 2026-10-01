@@ -103,8 +103,11 @@
   <!-- LOGIN -->
   <div id="login" class="view active">
     <header>
-      <img data-store="logo" src="{{STORE_LOGO}}" alt="{{STORE_TITLE}}" />
-      <div class="store-name" data-store="nombre">{{STORE_TITLE}}</div>
+      <div class="header-main">
+        <img data-store="logo" src="{{STORE_LOGO}}" alt="{{STORE_TITLE}}" />
+        <div class="store-name" data-store="nombre">{{STORE_TITLE}}</div>
+      </div>
+      <div class="header-promo" data-store="header-promo" style="display:none;"></div>
     </header>
     <div class="panel">
       <h3>Acceso administrador</h3>
@@ -142,6 +145,10 @@
         🏷️ Categorías
         <span class="desc">Oculta las que no uses, para simplificar el menú del cliente</span>
       </button>
+      <button class="accion-btn" onclick="abrirHeaderPromo()">
+        📣 Aviso del header
+        <span class="desc">Escribe una promociòn breve para mostrarla arriba de la tienda</span>
+      </button>
       <button class="accion-btn" onclick="abrirListaPedidos()">
         📦 Pedidos
         <span class="desc">Marca cuáles se concretaron para calcular tu comisión</span>
@@ -150,6 +157,20 @@
         📊 Inventario y Utilidad
         <span class="desc">Costo, cantidad en stock y utilidad — solo visible para ti</span>
       </button>
+    </div>
+  </div>
+
+  <!-- CONFIGURACIÓN: aviso del header -->
+  <div id="headerPromoConfig" class="view">
+    <div class="panel" style="max-width: 600px;">
+      <h3>Promoción del header</h3>
+      <p style="color:#64748b; font-size:.85rem; margin-top:-.5rem;">
+        Escribe una línea corta que aparezca en la parte superior de la tienda, por ejemplo: “Envío a domicilio en la zona” o “10% de descuento este fin de semana”.
+      </p>
+      <textarea id="headerPromoInput" rows="3" placeholder="Ej: Envío a domicilio en La Habana · 10% de descuento este fin de semana"></textarea>
+      <button onclick="guardarHeaderPromo()">Guardar aviso</button>
+      <button type="button" style="background:white; color:#64748b; border:1px solid #cbd5e1; margin-top:.5rem;" onclick="showView('home')">Cancelar</button>
+      <p id="headerPromoMsg" style="font-size:.85rem; min-height: 1.2em;"></p>
     </div>
   </div>
 
@@ -395,6 +416,39 @@
       if (res.status === 401) { logout(); return []; }
       productosCache = await res.json();
       return productosCache;
+    }
+
+    function getHeaderPromoLocalValue() {
+      try {
+        return localStorage.getItem('storeHeaderPromo') || config?.headerPromo || '';
+      } catch (e) {
+        return config?.headerPromo || '';
+      }
+    }
+
+    function abrirHeaderPromo() {
+      showView('headerPromoConfig');
+      document.getElementById('headerPromoInput').value = getHeaderPromoLocalValue();
+    }
+
+    function guardarHeaderPromo() {
+      const input = document.getElementById('headerPromoInput');
+      const msg = document.getElementById('headerPromoMsg');
+      const texto = input.value.trim();
+
+      if (texto) {
+        localStorage.setItem('storeHeaderPromo', texto);
+        msg.style.color = '#16a34a';
+        msg.textContent = 'Aviso guardado ✅';
+      } else {
+        localStorage.removeItem('storeHeaderPromo');
+        msg.style.color = '#64748b';
+        msg.textContent = 'Aviso ocultado';
+      }
+
+      const configActual = { ...(config || {}), headerPromo: texto || (config?.headerPromo || '') };
+      applyBranding(configActual);
+      showView('home');
     }
 
     async function abrirDashboard() {
