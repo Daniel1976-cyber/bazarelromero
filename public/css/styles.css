@@ -83,6 +83,47 @@ header .header-promo {
   box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
 }
 
+@media (max-width: 600px) {
+  header {
+    padding: .75rem 1rem .6rem;
+  }
+
+  header .header-main {
+    flex-wrap: wrap;
+    justify-content: center;
+    text-align: center;
+  }
+
+  header img.logo-round {
+    height: 36px;
+    width: 36px;
+  }
+
+  header .store-name {
+    font-size: 1rem;
+  }
+
+  header .slogan {
+    font-size: .72rem;
+  }
+
+  .exchange-rate {
+    width: 100%;
+    margin-left: 0;
+    text-align: center;
+  }
+
+  header .header-promo {
+    font-size: .72rem;
+    padding: .35rem .6rem;
+    margin-top: .6rem;
+  }
+
+  .search-panel {
+    padding: .75rem 1rem;
+  }
+}
+
 .exchange-rate {
   margin-left: auto;
   font-size: .85rem;
