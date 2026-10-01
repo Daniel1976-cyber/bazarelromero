@@ -64,16 +64,24 @@
   </button>
 
   <footer>
-    <h4 data-store="nombre"></h4>
-    <p data-store="slogan"></p>
-    <p>
-      <a data-store="whatsapp-link" href="#" target="_blank">WhatsApp</a> ·
-      <a data-store="email" href="#"></a> ·
-      <a data-store="facebook" href="#" target="_blank">Facebook</a>
-    </p>
-    <p data-store="direccion"></p>
-    <p data-store="horario"></p>
-    <p>© <span data-store="anio"></span> <span data-store="nombre"></span> — Todos los derechos reservados.</p>
+    <div class="footer-main">
+      <section class="footer-brand" aria-label="Información de la tienda">
+        <h4 data-store="nombre"></h4>
+        <p data-store="slogan"></p>
+      </section>
+      <section class="footer-contact" aria-label="Contacto y ubicación">
+        <h4>Contacto y ubicación</h4>
+        <p class="footer-address"><span class="footer-label">Dirección</span><span data-store="direccion"></span></p>
+        <p class="footer-phone"><span class="footer-label">Teléfono</span><a data-store="phone-link" href="#"><span data-store="phone"></span></a></p>
+        <div class="footer-links">
+          <a data-store="whatsapp-link" href="#" target="_blank" rel="noopener noreferrer">Escribir por WhatsApp</a>
+          <a data-store="email" href="#"></a>
+          <a data-store="facebook" href="#" target="_blank" rel="noopener noreferrer">Facebook</a>
+        </div>
+        <p data-store="horario"></p>
+      </section>
+    </div>
+    <p class="footer-copyright">© <span data-store="anio"></span> <span data-store="nombre"></span> — Todos los derechos reservados.</p>
   </footer>
 
   <script src="/js/store-app.js"></script>

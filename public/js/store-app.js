@@ -62,17 +62,32 @@ function applyBranding(config) {
 
   document.querySelectorAll('[data-store="logo"]').forEach((el) => (el.src = config.logo));
   document.querySelectorAll('[data-store="email"]').forEach((el) => {
-    el.textContent = config.email;
-    el.href = `mailto:${config.email}`;
+    if (config.email) {
+      el.textContent = config.email;
+      el.href = `mailto:${config.email}`;
+    } else {
+      el.style.display = 'none';
+    }
   });
   document.querySelectorAll('[data-store="whatsapp-link"]').forEach((el) => {
-    el.href = `https://wa.me/${config.whatsapp}`;
+    if (config.whatsapp) el.href = `https://wa.me/${config.whatsapp}`;
+    else el.style.display = 'none';
+  });
+  document.querySelectorAll('[data-store="phone-link"]').forEach((el) => {
+    if (config.whatsapp) el.href = `tel:+${config.whatsapp}`;
+    else el.style.display = 'none';
+  });
+  document.querySelectorAll('.footer-phone').forEach((el) => {
+    if (!config.whatsapp) el.style.display = 'none';
+  });
+  document.querySelectorAll('[data-store="phone"]').forEach((el) => {
+    el.textContent = config.whatsapp ? `+${config.whatsapp}` : '';
   });
   document.querySelectorAll('[data-store="facebook"]').forEach((el) => {
     if (config.facebook) el.href = config.facebook;
     else el.style.display = 'none';
   });
-  document.querySelectorAll('[data-store="direccion"]').forEach((el) => (el.textContent = config.direccion || ''));
+  document.querySelectorAll('[data-store="direccion"]').forEach((el) => (el.textContent = config.direccion || 'Calle 23 #145, entre 10 y 12, Centro'));
   document.querySelectorAll('[data-store="horario"]').forEach((el) => (el.textContent = config.horario || ''));
   document.querySelectorAll('[data-store="anio"]').forEach((el) => (el.textContent = new Date().getFullYear()));
 
