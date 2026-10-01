@@ -77,11 +77,21 @@ function applyBranding(config) {
     if (config.whatsapp) el.href = `tel:+${config.whatsapp}`;
     else el.style.display = 'none';
   });
-  document.querySelectorAll('.footer-phone').forEach((el) => {
+  document.querySelectorAll('.footer-phone[data-phone="primary"]').forEach((el) => {
     if (!config.whatsapp) el.style.display = 'none';
   });
   document.querySelectorAll('[data-store="phone"]').forEach((el) => {
     el.textContent = config.whatsapp ? `+${config.whatsapp}` : '';
+  });
+  document.querySelectorAll('[data-store="phone2-link"]').forEach((el) => {
+    if (config.telefono2) el.href = `tel:+${config.telefono2}`;
+    else el.style.display = 'none';
+  });
+  document.querySelectorAll('.footer-phone[data-phone="secondary"]').forEach((el) => {
+    if (!config.telefono2) el.style.display = 'none';
+  });
+  document.querySelectorAll('[data-store="phone2"]').forEach((el) => {
+    el.textContent = config.telefono2 ? `+${config.telefono2}` : '';
   });
   document.querySelectorAll('[data-store="facebook"]').forEach((el) => {
     if (config.facebook) el.href = config.facebook;

@@ -62,6 +62,7 @@ export const storeConfig = {
   // Si alguien lo escribe como "+52 998 323 8891" en el .env, esto lo
   // limpia solo — así nunca se rompe el link por un error de formato.
   whatsapp: (process.env.STORE_WHATSAPP || '').replace(/[^0-9]/g, ''),
+  telefono2: (process.env.STORE_PHONE_2 || '').replace(/[^0-9]/g, ''),
   email: process.env.STORE_EMAIL || '',
   facebook: process.env.STORE_FACEBOOK || '',
   direccion: process.env.STORE_ADDRESS || '',
@@ -104,6 +105,7 @@ export const storeConfig = {
       logo: this.logo,
       colores: this.colores,
       whatsapp: this.whatsapp,
+      telefono2: this.telefono2,
       email: this.email,
       facebook: this.facebook,
       direccion: this.direccion,
