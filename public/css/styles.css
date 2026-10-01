@@ -96,8 +96,8 @@ header img {
 }
 
 header img.logo-round {
-  height: 110px;
-  width: 110px;
+  height: 80px;
+  width: 80px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid rgba(255, 255, 255, .5);
