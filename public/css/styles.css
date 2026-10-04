@@ -113,6 +113,7 @@ header .store-name {
 header .slogan {
   font-size: 1.2rem;
   opacity: .85;
+  font-style: italic;
 }
 
 header .header-promo {
@@ -157,6 +158,7 @@ header .header-promo {
   header .slogan {
     font-size: 1.2rem;
     line-height: 1.2;
+    font-style: italic;
   }
 
   .exchange-rate {
