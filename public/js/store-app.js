@@ -56,12 +56,21 @@ function applyBranding(config) {
   document.querySelectorAll('[data-store="nombre"]').forEach((el) => (el.textContent = config.nombre));
   document.querySelectorAll('[data-store="slogan"]').forEach((el) => (el.textContent = config.slogan));
   document.querySelectorAll('[data-store="logo"]').forEach((el) => (el.src = config.logo));
-  document.querySelectorAll('[data-store="email"]').forEach((el) => {
-    el.textContent = config.email;
-    el.href = `mailto:${config.email}`;
-  });
   document.querySelectorAll('[data-store="whatsapp-link"]').forEach((el) => {
-    el.href = `https://wa.me/${config.whatsapp}`;
+    if (config.whatsapp) {
+      el.href = `https://wa.me/${config.whatsapp}`;
+      el.textContent = `WhatsApp: +${config.whatsapp}`;
+    } else {
+      el.style.display = 'none';
+    }
+  });
+  document.querySelectorAll('[data-store="phone2-link"]').forEach((el) => {
+    if (config.phone2) {
+      el.href = `tel:+${config.phone2}`;
+      el.textContent = `Teléfono: +${config.phone2}`;
+    } else {
+      el.style.display = 'none';
+    }
   });
   document.querySelectorAll('[data-store="facebook"]').forEach((el) => {
     if (config.facebook) el.href = config.facebook;
