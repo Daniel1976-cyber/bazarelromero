@@ -67,20 +67,32 @@
     🛒 <span id="cartCount" aria-live="polite">0</span>
   </button>
 
-  <footer>
-    <h4 data-store="nombre"></h4>
-    <p data-store="slogan"></p>
-    <p class="footer-links">
-      <a data-store="whatsapp-link" href="#" target="_blank" rel="noopener noreferrer">WhatsApp</a>
-      <a data-store="phone2-link" href="#">Teléfono</a>
-      <a href="https://t.me/bazar_el_romero_chats" target="_blank" rel="noopener noreferrer">Chat de Telegram</a>
-      <a href="https://t.me/bazar_el_romero" target="_blank" rel="noopener noreferrer">Telegram</a>
-      <a href="https://www.instagram.com/bazar_el_romero" target="_blank" rel="noopener noreferrer">Instagram</a>
-      <a data-store="facebook" href="#" target="_blank" rel="noopener noreferrer">Facebook</a>
-    </p>
-    <p data-store="direccion"></p>
-    <p data-store="horario"></p>
-    <p>© <span data-store="anio"></span> <span data-store="nombre"></span> — Todos los derechos reservados.</p>
+  <footer class="site-footer">
+    <div class="footer-main">
+      <div class="footer-brand">
+        <h4 data-store="nombre"></h4>
+        <p data-store="slogan"></p>
+      </div>
+      <section class="footer-section" aria-labelledby="footer-contact-title">
+        <h5 id="footer-contact-title">Contacto y redes</h5>
+        <ul class="footer-links">
+          <li><a data-store="whatsapp-link" href="#" target="_blank" rel="noopener noreferrer">WhatsApp</a></li>
+          <li><a data-store="phone2-link" href="#">Teléfono</a></li>
+          <li><a href="https://t.me/bazar_el_romero_chats" target="_blank" rel="noopener noreferrer">Chat de Telegram</a></li>
+          <li><a href="https://t.me/bazar_el_romero" target="_blank" rel="noopener noreferrer">Telegram</a></li>
+          <li><a href="https://www.instagram.com/bazar_el_romero" target="_blank" rel="noopener noreferrer">Instagram</a></li>
+          <li><a data-store="facebook" href="#" target="_blank" rel="noopener noreferrer">Facebook</a></li>
+        </ul>
+      </section>
+      <section data-store="footer-info" class="footer-section" aria-labelledby="footer-info-title">
+        <h5 id="footer-info-title">Información</h5>
+        <p data-store="direccion"></p>
+        <p data-store="horario"></p>
+      </section>
+    </div>
+    <div class="footer-bottom">
+      <p>© <span data-store="anio"></span> <span data-store="nombre"></span> — Todos los derechos reservados.</p>
+    </div>
   </footer>
 
   <script src="/js/store-app.js"></script>

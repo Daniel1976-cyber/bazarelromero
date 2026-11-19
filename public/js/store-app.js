@@ -76,8 +76,17 @@ function applyBranding(config) {
     if (config.facebook) el.href = config.facebook;
     else el.style.display = 'none';
   });
-  document.querySelectorAll('[data-store="direccion"]').forEach((el) => (el.textContent = config.direccion || ''));
-  document.querySelectorAll('[data-store="horario"]').forEach((el) => (el.textContent = config.horario || ''));
+  document.querySelectorAll('[data-store="direccion"]').forEach((el) => {
+    el.textContent = config.direccion || '';
+    el.hidden = !config.direccion;
+  });
+  document.querySelectorAll('[data-store="horario"]').forEach((el) => {
+    el.textContent = config.horario || '';
+    el.hidden = !config.horario;
+  });
+  document.querySelectorAll('[data-store="footer-info"]').forEach((el) => {
+    el.hidden = !config.direccion && !config.horario;
+  });
   document.querySelectorAll('[data-store="anio"]').forEach((el) => (el.textContent = new Date().getFullYear()));
 
   const tasaEl = document.getElementById('exchangeRateDisplay');
