@@ -112,32 +112,6 @@ async function cargarCategorias() {
 }
 let categoriasListas = cargarCategorias();
 
-let configTienda = {
-  headerPromo: storeConfig.headerPromo || '',
-};
-
-async function cargarConfigTienda() {
-  try {
-    const { data, error } = await supabase.from('config_tienda').select('key, value');
-    if (error) throw error;
-
-    const map = Object.fromEntries((data || []).map((row) => [row.key, row.value]));
-    configTienda = {
-      headerPromo: map.header_promo || storeConfig.headerPromo || '',
-    };
-  } catch (e) {
-    const noExiste = e?.code === '42P01' || /config_tienda|does not exist/i.test(e?.message || '');
-    if (!noExiste) {
-      console.error(`[${storeConfig.nombre}] Error al cargar config_tienda desde Supabase:`, e.message);
-    }
-    configTienda = {
-      headerPromo: storeConfig.headerPromo || '',
-    };
-  }
-}
-
-let configTiendaListas = cargarConfigTienda();
-
 function slugify(texto) {
   return texto
     .trim()
@@ -150,42 +124,28 @@ function slugify(texto) {
 // ─── Config pública (la usan index.html / search.html / admin.html) ──────
 app.get('/api/config', async (req, res) => {
   await categoriasListas;
-  await configTiendaListas;
+  // Si la tabla "anuncio" aún no existe en esta tienda (no se corrió el SQL
+  // nuevo), supabase devuelve error pero no lanza excepción: caemos al valor
+  // por defecto y la tienda sigue funcionando igual, sin cintillo.
+  const { data: anuncioData } = await supabase.from('anuncio').select('mensaje, activo').eq('id', 1).single();
   // El cliente solo ve las categorías activas — las ocultas no aparecen
   // en los filtros ni en el buscador, para no saturar el menú con
   // categorías que la tienda no usa.
   res.json({
     ...storeConfig.public(),
-    headerPromo: configTienda.headerPromo || storeConfig.headerPromo || '',
     categorias: categorias.filter((c) => c.activa),
+    anuncio: anuncioData || { mensaje: null, activo: false },
   });
 });
 
-app.get('/api/admin/config', verifyAdmin, async (req, res) => {
-  await configTiendaListas;
-  res.json({ headerPromo: configTienda.headerPromo || '' });
-});
-
-app.put('/api/admin/config/header-promo', verifyAdmin, async (req, res) => {
-  if (!supabaseService) {
-    return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado en esta tienda' });
-  }
-
-  const valor = String(req.body?.value ?? '').trim();
-  try {
-    const { data, error } = await supabaseService
-      .from('config_tienda')
-      .upsert({ key: 'header_promo', value: valor }, { onConflict: 'key' })
-      .select();
-
-    if (error) throw error;
-
-    configTienda.headerPromo = valor;
-    res.json({ success: true, value: valor, row: data?.[0] ?? null });
-  } catch (e) {
-    console.error('[api] Error al guardar header_promo:', e.message);
-    res.status(500).json({ error: e.message || 'No se pudo guardar la promoción' });
-  }
+// Cintillo promocional: el admin guarda/edita/activa el mensaje (fila única).
+app.put('/api/admin/anuncio', verifyAdmin, async (req, res) => {
+  if (!supabaseService) return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE no configurado' });
+  const { mensaje, activo } = req.body;
+  const { error } = await supabaseService.from('anuncio')
+    .upsert([{ id: 1, mensaje: mensaje || null, activo: !!activo, actualizado_en: new Date().toISOString() }]);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
 });
 
 // Admin: TODAS las categorías (activas y ocultas), para poder gestionarlas
@@ -496,6 +456,107 @@ const publicDir = path.join(projectRoot, 'public');
 // esta tienda, para que el título/descripción/imagen sean correctos incluso
 // para buscadores y vistas previas de WhatsApp/Facebook (que no ejecutan
 // JavaScript, así que lo que hace store-app.js en el navegador no les sirve).
+// Escapa texto antes de ponerlo dentro de HTML (título, atributos meta...).
+// Los nombres/descripciones de producto los escribe un admin, y la URL de la
+// petición la controla quien visita: nada de eso debe poder romper el HTML.
+function escaparHtml(valor) {
+  return String(valor ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function recortarTexto(texto, max) {
+  const limpio = String(texto || '').replace(/\s+/g, ' ').trim();
+  if (limpio.length <= max) return limpio;
+  return limpio.slice(0, max - 1).trimEnd() + '…';
+}
+
+// Solo productos visibles para el cliente: un producto oculto no debe
+// filtrar su nombre/foto por las etiquetas meta ni por el sitemap.
+function buscarProductoPublico(idCrudo) {
+  const id = parseInt(idCrudo, 10);
+  if (Number.isNaN(id)) return null;
+  const p = productos.find((x) => x.id === id);
+  return p && p.disponible ? p : null;
+}
+
+// ─── Contenido que el servidor entrega YA escrito en el HTML ─────────────
+// Antes la grilla de productos la dibujaba solo JavaScript, así que un
+// buscador que no lo ejecute veía una página vacía. Estas funciones
+// replican EXACTAMENTE el HTML de renderProductCard (public/js/store-app.js):
+// si cambias una, cambia la otra.
+const PRODUCTOS_SSR_MAX = 48; // la home trae los primeros; el JS completa el resto
+
+function formatearMonto(valor) {
+  if (valor === null || valor === undefined || Number.isNaN(Number(valor))) return '';
+  return Number(valor).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatearPrecio(usd, cup) {
+  const partes = [];
+  if (usd !== null && usd !== undefined) partes.push(`$${formatearMonto(usd)}`);
+  if (cup !== null && cup !== undefined) partes.push(`${formatearMonto(cup)} CUP`);
+  return partes.join(' / ');
+}
+
+// JSON dentro de un atributo onclick='...': hay que escapar & y '.
+function jsonParaAtributoServidor(obj) {
+  return JSON.stringify(obj).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;');
+}
+
+// JSON-LD dentro de <script>: se escapa "<" para que un texto con
+// "</script>" no pueda cerrar la etiqueta antes de tiempo.
+function jsonLdScript(obj, id) {
+  const json = JSON.stringify(obj).replace(/</g, '\\u003c');
+  const atributos = id ? ` id="${id}" data-ssr="1"` : '';
+  return `<script type="application/ld+json"${atributos}>${json}</script>`;
+}
+
+function renderTarjetaProducto(p) {
+  const nombre = escaparHtml(p.nombre);
+  const href = `/search.html?id=${encodeURIComponent(p.id)}`;
+  return `
+    <div class="product-card" data-id="${escaparHtml(p.id)}">
+      <div class="img-wrap">
+        <a href="${href}" tabindex="-1" aria-hidden="true"><img src="${escaparHtml(p.img)}" alt="${nombre}" loading="lazy" /></a>
+      </div>
+      <div class="body">
+        <a class="card-nombre" href="${href}">${nombre}</a>
+        <div class="price">${formatearPrecio(p.precio_usd, p.precio_cup)}</div>
+        <button onclick='StoreApp.addToCart(${jsonParaAtributoServidor(paraCliente(p))})' aria-label="Agregar ${nombre} al carrito">Agregar</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderDetalleProducto(p) {
+  const nombre = escaparHtml(p.nombre);
+  return `
+        <div class="img-wrap">
+          <img src="${escaparHtml(p.img)}" alt="${nombre}" />
+        </div>
+        <div>
+          <h1>${nombre}</h1>
+          <div class="price">${formatearPrecio(p.precio_usd, p.precio_cup)}</div>
+          <p class="descripcion">${escaparHtml(p.descripcion)}</p>
+          <button onclick='StoreApp.addToCart(${jsonParaAtributoServidor(paraCliente(p))})' aria-label="Agregar ${nombre} al carrito">Agregar al carrito</button>
+        </div>
+      `;
+}
+
+// La home espera el catálogo, pero no más de unos segundos: si el servidor
+// "arranca en frío" y Supabase tarda, es mejor entregar la página sin la
+// grilla (el JS la completa) que dejar al visitante frente a una pantalla en blanco.
+async function esperarProductos(ms = 1500) {
+  let temporizador;
+  const limite = new Promise((resolve) => { temporizador = setTimeout(resolve, ms); });
+  await Promise.race([productosListos, limite]);
+  clearTimeout(temporizador);
+}
+
 function renderPaginaConMeta(nombreArchivo, req) {
   // Los archivos reales están renombrados con "_" adelante (_index.html,
   // _search.html, _admin.html) — a propósito, para que Vercel NO encuentre
@@ -505,21 +566,108 @@ function renderPaginaConMeta(nombreArchivo, req) {
   const ruta = path.join(publicDir, archivoFisico);
   const html = fs.readFileSync(ruta, 'utf8');
 
-  const urlActual = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-  const titulo = storeConfig.nombre;
-  const descripcion = (storeConfig.slogan || '').trim()
-    || `Catálogo de ${storeConfig.nombre}. Haz tu pedido fácil y rápido por WhatsApp.`;
+  const origen = `${req.protocol}://${req.get('host')}`;
+  const urlActual = `${origen}${req.originalUrl}`;
+  const titulo = storeConfig.nombre; // texto visible del header y alt del logo
   const logoConBarra = storeConfig.logo.startsWith('/') ? storeConfig.logo : `/${storeConfig.logo}`;
   const logoAbsoluto = /^https?:\/\//.test(storeConfig.logo)
     ? storeConfig.logo
-    : `${req.protocol}://${req.get('host')}${logoConBarra}`;
+    : `${origen}${logoConBarra}`;
+
+  // Título, descripción e imagen que ven buscadores y vistas previas
+  // (WhatsApp, Facebook). Por defecto son los de la tienda...
+  const eslogan = (storeConfig.slogan || '').trim();
+  let tituloPagina = storeConfig.seoTitulo || (eslogan ? `${titulo} | ${eslogan}` : titulo);
+  let descripcion = storeConfig.seoDescripcion || eslogan
+    || `Catálogo de ${titulo}. Haz tu pedido fácil y rápido por WhatsApp.`;
+  // Imagen de la vista previa: la dedicada (STORE_SOCIAL_IMAGE, ideal
+  // 1200x630) si la tienda la configuró; si no, el logo como hasta ahora.
+  const imagenDedicada = storeConfig.imagenSocial
+    ? (/^https?:\/\//.test(storeConfig.imagenSocial) ? storeConfig.imagenSocial : `${origen}${storeConfig.imagenSocial}`)
+    : '';
+  let imagenSocial = imagenDedicada || logoAbsoluto;
+  let usaImagenGrande = Boolean(imagenDedicada); // tarjeta grande solo si es la apaisada
+
+  // ...pero en la ficha de un producto (search.html?id=) usan los DEL
+  // PRODUCTO: así al compartir el enlace sale su foto y su nombre.
+  const productoFicha = nombreArchivo === 'search.html' && req.query.id
+    ? buscarProductoPublico(req.query.id)
+    : null;
+  if (productoFicha) {
+    tituloPagina = `${productoFicha.nombre} | ${titulo}`;
+    descripcion = recortarTexto(productoFicha.descripcion, 155)
+      || `Compra ${productoFicha.nombre} en ${titulo}. Haz tu pedido fácil y rápido por WhatsApp.`;
+    if (productoFicha.img) {
+      imagenSocial = /^https?:\/\//.test(productoFicha.img)
+        ? productoFicha.img
+        : `${origen}${productoFicha.img.startsWith('/') ? '' : '/'}${productoFicha.img}`;
+      usaImagenGrande = false; // la foto de un producto puede tener cualquier proporción
+    }
+  }
 
   // search.html cumple dos roles distintos: ficha de un producto puntual
   // (?id=, sí vale la pena que Google la indexe) o resultados de una
   // búsqueda de texto libre (no debe competir con la página principal).
-  const esFichaDeProducto = nombreArchivo === 'search.html' && Boolean(req.query.id);
+  // ── Contenido que el servidor escribe directo en el HTML ──
+  const visibles = productos.filter((p) => p.disponible);
+  let gridHtml = '';
+  let detalleHtml = '';
+  let similaresHtml = '';
+  let canonicalUrl = '';
+  let jsonld = '';
+
+  if (nombreArchivo === 'index.html') {
+    gridHtml = visibles.slice(0, PRODUCTOS_SSR_MAX).map((p) => renderTarjetaProducto(p)).join('');
+    canonicalUrl = `${origen}/`; // también cuando se entra por /index.html
+
+    const negocio = {
+      '@type': storeConfig.direccion ? 'Store' : 'Organization',
+      name: titulo,
+      url: `${origen}/`,
+      logo: logoAbsoluto,
+      image: logoAbsoluto,
+    };
+    if (storeConfig.facebook) negocio.sameAs = [storeConfig.facebook];
+    if (storeConfig.whatsapp) negocio.telephone = `+${storeConfig.whatsapp}`;
+    if (storeConfig.direccion) negocio.address = { '@type': 'PostalAddress', streetAddress: storeConfig.direccion };
+    jsonld = jsonLdScript({
+      '@context': 'https://schema.org',
+      '@graph': [{ '@type': 'WebSite', name: titulo, url: `${origen}/` }, negocio],
+    });
+  } else if (productoFicha) {
+    detalleHtml = renderDetalleProducto(productoFicha);
+    similaresHtml = visibles
+      .filter((p) => p.categoria === productoFicha.categoria && p.id !== productoFicha.id)
+      .slice(0, 10)
+      .map((p) => renderTarjetaProducto(p))
+      .join('');
+    canonicalUrl = `${origen}/search.html?id=${productoFicha.id}`;
+
+    const precio = productoFicha.precio_usd ?? productoFicha.precio_cup;
+    const schema = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: productoFicha.nombre,
+      image: [imagenSocial],
+      description: recortarTexto(productoFicha.descripcion, 300) || productoFicha.nombre,
+      sku: String(productoFicha.id),
+    };
+    if (precio !== null && precio !== undefined) {
+      schema.offers = {
+        '@type': 'Offer',
+        price: precio,
+        priceCurrency: productoFicha.precio_usd !== null && productoFicha.precio_usd !== undefined ? 'USD' : 'CUP',
+        availability: 'https://schema.org/InStock',
+        url: canonicalUrl,
+      };
+    }
+    jsonld = jsonLdScript(schema, 'productSchema');
+  }
+  const canonicalTag = canonicalUrl ? `<link rel="canonical" href="${escaparHtml(canonicalUrl)}" />` : '';
+
+  // Una URL ?id= que no existe (o es de un producto oculto) NO se indexa.
   const robots = nombreArchivo === 'search.html'
-    ? (esFichaDeProducto ? 'index, follow' : 'noindex, follow')
+    ? (productoFicha ? 'index, follow' : 'noindex, follow')
     : 'index, follow';
 
   // Colores, degradado y tipografía inyectados directo en el HTML (no
@@ -534,25 +682,78 @@ function renderPaginaConMeta(nombreArchivo, req) {
     ? `<link rel="stylesheet" href="${storeConfig.fuenteGoogleUrl}" />`
     : '';
 
-  return html
-    .split('{{STORE_TITLE}}').join(titulo)
-    .split('{{STORE_DESCRIPTION}}').join(descripcion)
-    .split('{{STORE_OG_IMAGE}}').join(logoAbsoluto)
-    .split('{{STORE_URL}}').join(urlActual)
-    .split('{{STORE_LOGO}}').join(storeConfig.logo)
-    .split('{{STORE_ROBOTS}}').join(robots)
-    .split('{{STORE_COLOR_PRIMARIO}}').join(colorPrimario)
-    .split('{{STORE_COLOR_ACENTO}}').join(colorAcento)
-    .split('{{STORE_HEADER_GRADIENTE}}').join(headerGradiente)
-    .split('{{STORE_FUENTE_TITULO}}').join(fuenteTitulo)
-    .split('{{STORE_FUENTE_CUERPO}}').join(fuenteCuerpo)
-    .split('{{STORE_FONT_LINK}}').join(fontLinkTag);
+  // Una sola pasada: el texto ya sustituido (p. ej. el nombre de un
+  // producto) nunca se vuelve a interpretar como placeholder.
+  const valores = {
+    STORE_TITLE: escaparHtml(titulo),
+    PAGE_TITLE: escaparHtml(tituloPagina),
+    STORE_DESCRIPTION: escaparHtml(descripcion),
+    STORE_OG_IMAGE: escaparHtml(imagenSocial),
+    STORE_URL: escaparHtml(urlActual),
+    STORE_LOGO: storeConfig.logo,
+    STORE_ROBOTS: robots,
+    STORE_COLOR_PRIMARIO: colorPrimario,
+    STORE_COLOR_ACENTO: colorAcento,
+    STORE_TEXTO_SOBRE_PRIMARIO: storeConfig.colores.textoSobrePrimario,
+    STORE_TEXTO_SOBRE_ACENTO: storeConfig.colores.textoSobreAcento,
+    STORE_TEXTO_SOBRE_HEADER: storeConfig.colores.textoSobreHeader,
+    STORE_HEADER_GRADIENTE: headerGradiente,
+    STORE_FUENTE_TITULO: fuenteTitulo,
+    STORE_FUENTE_CUERPO: fuenteCuerpo,
+    STORE_FONT_LINK: fontLinkTag,
+    STORE_PRODUCT_GRID: gridHtml,
+    STORE_DETALLE_HTML: detalleHtml,
+    STORE_DETALLE_DISPLAY: detalleHtml ? 'block' : 'none',
+    STORE_SIMILARES: similaresHtml,
+    STORE_CANONICAL_TAG: canonicalTag,
+    STORE_JSONLD: jsonld,
+    STORE_TWITTER_CARD: `<meta name="twitter:card" content="${usaImagenGrande ? 'summary_large_image' : 'summary'}" />`,
+  };
+  return html.replace(/\{\{(\w+)\}\}/g, (coincidencia, clave) => (clave in valores ? valores[clave] : coincidencia));
 }
 
-app.get('/', (req, res) => res.send(renderPaginaConMeta('index.html', req)));
-app.get('/index.html', (req, res) => res.send(renderPaginaConMeta('index.html', req)));
-app.get('/search.html', (req, res) => res.send(renderPaginaConMeta('search.html', req)));
+app.get('/', async (req, res) => {
+  await esperarProductos();
+  res.send(renderPaginaConMeta('index.html', req));
+});
+app.get('/index.html', async (req, res) => {
+  await esperarProductos();
+  res.send(renderPaginaConMeta('index.html', req));
+});
+app.get('/search.html', async (req, res) => {
+  await productosListos; // la ficha necesita el catálogo ya cargado
+  res.send(renderPaginaConMeta('search.html', req));
+});
 app.get('/admin.html', (req, res) => res.send(renderPaginaConMeta('admin.html', req)));
+
+// robots.txt: deja pasar a los buscadores, les pide no rastrear la API (solo
+// devuelve JSON) y les indica dónde está el sitemap. El admin ya lleva
+// "noindex" en su propia página; no se lista aquí para no anunciar su ruta.
+app.get('/robots.txt', (req, res) => {
+  const origen = `${req.protocol}://${req.get('host')}`;
+  res.type('text/plain').send(
+`User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: ${origen}/sitemap.xml
+`);
+});
+
+// sitemap.xml: la página principal + una entrada por cada producto visible.
+// Es la forma de que Google descubra las fichas, que hoy no tienen enlaces.
+app.get('/sitemap.xml', async (req, res) => {
+  await productosListos;
+  const origen = `${req.protocol}://${req.get('host')}`;
+  const urls = [`${origen}/`]
+    .concat(productos.filter((p) => p.disponible).map((p) => `${origen}/search.html?id=${p.id}`));
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map((u) => `  <url><loc>${escaparHtml(u)}</loc></url>`).join('\n')}
+</urlset>
+`;
+  res.type('application/xml').send(xml);
+});
 
 // Evita el 404 de favicon.ico que piden algunos navegadores por su cuenta,
 // aunque ya exista el <link rel="icon"> apuntando al logo.

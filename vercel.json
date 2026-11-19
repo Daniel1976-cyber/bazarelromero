@@ -6,6 +6,8 @@
     { "source": "/index.html", "destination": "/api/index.js" },
     { "source": "/search.html", "destination": "/api/index.js" },
     { "source": "/admin.html", "destination": "/api/index.js" },
+    { "source": "/robots.txt", "destination": "/api/index.js" },
+    { "source": "/sitemap.xml", "destination": "/api/index.js" },
     { "source": "/(.*)", "destination": "/public/$1" }
   ]
 }

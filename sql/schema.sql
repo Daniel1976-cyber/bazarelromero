@@ -28,19 +28,6 @@ create table if not exists categorias (
   activa boolean not null default true  -- el admin puede ocultarla sin borrarla
 );
 
--- Configuración de la tienda: valores globales que se pueden editar desde
--- el panel de administración sin tocar .env. Ej.: aviso del header, texto de
--- promoción, mensaje de cierre, etc.
-create table if not exists config_tienda (
-  key text primary key,
-  value text not null default '',
-  actualizado_en timestamptz not null default now()
-);
-
-insert into config_tienda (key, value)
-values ('header_promo', '')
-on conflict (key) do nothing;
-
 -- Si ya tenías la tabla categorias de antes (sin esta columna), esto la
 -- agrega sin tocar las categorías existentes — todas quedan activas.
 alter table categorias add column if not exists activa boolean not null default true;
@@ -73,13 +60,6 @@ alter table categorias enable row level security;
 do $$ begin
   if not exists (select 1 from pg_policies where tablename = 'categorias' and policyname = 'Lectura pública de categorias') then
     create policy "Lectura pública de categorias" on categorias for select using (true);
-  end if;
-end $$;
-
-alter table config_tienda enable row level security;
-do $$ begin
-  if not exists (select 1 from pg_policies where tablename = 'config_tienda' and policyname = 'Lectura pública de config_tienda') then
-    create policy "Lectura pública de config_tienda" on config_tienda for select using (true);
   end if;
 end $$;
 
@@ -132,3 +112,23 @@ create table if not exists pedidos (
 );
 
 alter table pedidos enable row level security;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- ANUNCIO: cintillo promocional/aviso que el admin gestiona desde el panel
+-- (ej. "Nuevas entregas a domicilio"). Fila única, lectura pública.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists anuncio (
+  id int primary key default 1,
+  mensaje text,
+  activo boolean not null default false,
+  actualizado_en timestamptz default now(),
+  constraint un_solo_registro check (id = 1)
+);
+insert into anuncio (id, mensaje, activo) values (1, null, false) on conflict (id) do nothing;
+
+alter table anuncio enable row level security;
+do $$ begin
+  if not exists (select 1 from pg_policies where tablename = 'anuncio' and policyname = 'Lectura pública de anuncio') then
+    create policy "Lectura pública de anuncio" on anuncio for select using (true);
+  end if;
+end $$;

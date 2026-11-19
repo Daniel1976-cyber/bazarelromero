@@ -32,18 +32,75 @@ function parseCategories(raw) {
 // local y no empieza con "/", se la agrega — evita URLs rotas tipo
 // "https://mi-tienda.vercel.applogo.webp" cuando alguien escribe
 // STORE_LOGO_PATH="logo.webp" en vez de "/logo.webp".
-function normalizarRutaLogo(valor) {
-  if (!valor) return '/logo.png';
+function normalizarRuta(valor) {
+  if (!valor) return '';
   if (/^https?:\/\//.test(valor)) return valor;
   return valor.startsWith('/') ? valor : `/${valor}`;
+}
+
+function normalizarRutaLogo(valor) {
+  return normalizarRuta(valor) || '/logo.png';
+}
+
+// ─── Contraste automático ────────────────────────────────────────────────
+// Texto legible sobre los colores de la tienda: blanco u oscuro, según cuál se
+// lea mejor. Así un acento amarillo claro no lleva letras blancas ilegibles y
+// cualquier tema funciona sin tocar el CSS. Se puede forzar desde el .env con
+// STORE_TEXT_ON_PRIMARY / STORE_TEXT_ON_ACCENT / STORE_TEXT_ON_HEADER.
+const TEXTO_CLARO = '#ffffff';
+const TEXTO_OSCURO = '#111827';
+
+function hexARgb(valor) {
+  const m = String(valor || '').trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!m) return null;
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+}
+
+function luminancia([r, g, b]) {
+  const lineal = (v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lineal(r) + 0.7152 * lineal(g) + 0.0722 * lineal(b);
+}
+
+// Se conserva el blanco mientras contraste al menos 3:1 (el umbral de Material
+// Design para texto de interfaz): los colores de marca saturados, como un rojo
+// o un verde, siguen con letras blancas. Más claro que eso, pasa a texto oscuro.
+function textoLegibleSobreLuminancia(l) {
+  return 1.05 / (l + 0.05) >= 3 ? TEXTO_CLARO : TEXTO_OSCURO;
+}
+
+function textoLegibleSobre(color) {
+  const rgb = hexARgb(color);
+  return rgb ? textoLegibleSobreLuminancia(luminancia(rgb)) : TEXTO_CLARO;
+}
+
+// Para un degradado: promedio de la luminancia de todos sus colores #hex. Si no
+// trae ninguno (colores con nombre, rgb()...) se usa el color de respaldo.
+function textoLegibleSobreFondo(fondo, respaldo) {
+  const colores = (String(fondo || '').match(/#[0-9a-f]{3,6}\b/gi) || []).map(hexARgb).filter(Boolean);
+  if (!colores.length) return textoLegibleSobre(respaldo);
+  const media = colores.reduce((suma, c) => suma + luminancia(c), 0) / colores.length;
+  return textoLegibleSobreLuminancia(media);
 }
 
 export const storeConfig = {
   nombre: process.env.STORE_NAME || 'Mi Tienda',
   slug: process.env.STORE_SLUG || 'mi-tienda',
   slogan: process.env.STORE_SLOGAN || '',
-  headerPromo: process.env.STORE_HEADER_PROMO || '',
+  // SEO (solo los usa el servidor, no se exponen al navegador): título y
+  // descripción pensados para buscadores. Si se dejan vacíos se arman solos
+  // con el nombre y el eslogan.
+  seoTitulo: process.env.STORE_SEO_TITLE || '',
+  seoDescripcion: process.env.STORE_SEO_DESCRIPTION || '',
   logo: normalizarRutaLogo(process.env.STORE_LOGO_PATH),
+  // Imagen para las vistas previas al compartir el enlace (WhatsApp,
+  // Facebook...). Opcional: si se deja vacía se usa el logo. Solo la usa el
+  // servidor, no se expone al navegador.
+  imagenSocial: normalizarRuta(process.env.STORE_SOCIAL_IMAGE),
   colores: {
     primario: process.env.STORE_COLOR_PRIMARY || '#0f766e',
     acento: process.env.STORE_COLOR_ACCENT || '#f59e0b',
@@ -51,6 +108,13 @@ export const storeConfig = {
     // "linear-gradient(135deg, #1a3d2b 0%, #2d6a4f 100%)". Si se deja
     // vacío, el header usa "primario" como color sólido de siempre.
     headerGradiente: process.env.STORE_HEADER_GRADIENT || '',
+    // Color del texto sobre cada fondo. Vacío = se elige solo (ver arriba).
+    textoSobrePrimario: process.env.STORE_TEXT_ON_PRIMARY
+      || textoLegibleSobre(process.env.STORE_COLOR_PRIMARY || '#0f766e'),
+    textoSobreAcento: process.env.STORE_TEXT_ON_ACCENT
+      || textoLegibleSobre(process.env.STORE_COLOR_ACCENT || '#f59e0b'),
+    textoSobreHeader: process.env.STORE_TEXT_ON_HEADER
+      || textoLegibleSobreFondo(process.env.STORE_HEADER_GRADIENT, process.env.STORE_COLOR_PRIMARY || '#0f766e'),
   },
   // Tipografías del tema (opcional). Si se deja vacío, usa la fuente del
   // sistema como hasta ahora. "fuenteGoogleUrl" es el link de Google Fonts
@@ -62,7 +126,6 @@ export const storeConfig = {
   // Si alguien lo escribe como "+52 998 323 8891" en el .env, esto lo
   // limpia solo — así nunca se rompe el link por un error de formato.
   whatsapp: (process.env.STORE_WHATSAPP || '').replace(/[^0-9]/g, ''),
-  telefono2: (process.env.STORE_PHONE_2 || '').replace(/[^0-9]/g, ''),
   email: process.env.STORE_EMAIL || '',
   facebook: process.env.STORE_FACEBOOK || '',
   direccion: process.env.STORE_ADDRESS || '',
@@ -101,11 +164,9 @@ export const storeConfig = {
     return {
       nombre: this.nombre,
       slogan: this.slogan,
-      headerPromo: this.headerPromo,
       logo: this.logo,
       colores: this.colores,
       whatsapp: this.whatsapp,
-      telefono2: this.telefono2,
       email: this.email,
       facebook: this.facebook,
       direccion: this.direccion,

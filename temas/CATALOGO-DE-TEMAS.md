@@ -1,6 +1,6 @@
 # Catálogo de temas
 
-5 combinaciones de color + tipografía, listas para copiar y pegar en el
+6 combinaciones de color + tipografía, listas para copiar y pegar en el
 `.env.local` de cualquier tienda. Cada una es independiente del logo y el
 eslogan — eso siempre lo pone cada dueño por su cuenta.
 
@@ -76,7 +76,26 @@ STORE_FONT_GOOGLE_URL="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;
 
 ---
 
-## Personalizado (sin usar ninguno de los 5)
+## 6. Carmesí Energía (rojo intenso + amarillo suave)
+Cálido, llamativo y con energía. Bueno para ofertas, combos, comida, bebidas o
+tiendas que quieren transmitir promoción y urgencia.
+
+```
+STORE_COLOR_PRIMARY="#DC143C"
+STORE_COLOR_ACCENT="#FDE68A"
+STORE_HEADER_GRADIENT="linear-gradient(120deg, #450A0A 0%, #991B1B 30%, #DC143C 65%, #FF3D24 100%)"
+STORE_FONT_TITULO="'Poppins', sans-serif"
+STORE_FONT_BODY="'Inter', sans-serif"
+STORE_FONT_GOOGLE_URL="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+```
+
+El acento es un amarillo muy claro, así que la plantilla pone **texto oscuro**
+sobre él (botón de buscar, carrito flotante, cintillo) y texto blanco sobre el
+rojo. No hay que configurar nada: se elige solo.
+
+---
+
+## Personalizado (sin usar ninguno de los 6)
 
 Si el dueño quiere algo distinto a estos 5, se puede armar a mano: cualquier
 color hexadecimal para `STORE_COLOR_PRIMARY`/`STORE_COLOR_ACCENT`, cualquier
@@ -88,3 +107,20 @@ copiar el link `<link href="...">`).
 Si se dejan `STORE_HEADER_GRADIENT`, `STORE_FONT_TITULO` y
 `STORE_FONT_GOOGLE_URL` vacíos, la tienda usa el estilo simple de siempre
 (header de color sólido, fuente del sistema) — ningún tema es obligatorio.
+
+### El texto sobre cada color se elige solo
+
+Con cualquier color que elijas, la plantilla decide si las letras encima van en
+blanco u oscuras (según cuál contraste mejor), para que un acento claro como el
+amarillo o el dorado no lleve letras blancas ilegibles. Si en algún caso no te
+gusta la elección automática, fuérzala en el `.env.local`:
+
+```
+STORE_TEXT_ON_PRIMARY="#ffffff"   # texto sobre el color primario (botones, categorías)
+STORE_TEXT_ON_ACCENT="#111827"    # texto sobre el color de acento (buscar, carrito, cintillo)
+STORE_TEXT_ON_HEADER="#ffffff"    # texto del header (nombre, eslogan, tasa)
+```
+
+Recomendación: usa un **primario oscuro o medio** (rojo, verde, azul, carbón).
+Los colores muy claros funcionan bien como acento, pero no como primario: el
+primario también se usa como color de los precios sobre fondo blanco.

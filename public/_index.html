@@ -3,20 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{STORE_TITLE}}</title>
+  <title>{{PAGE_TITLE}}</title>
   <meta name="description" content="{{STORE_DESCRIPTION}}" />
 
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="{{STORE_TITLE}}" />
+  <meta property="og:title" content="{{PAGE_TITLE}}" />
   <meta property="og:description" content="{{STORE_DESCRIPTION}}" />
   <meta property="og:image" content="{{STORE_OG_IMAGE}}" />
   <meta property="og:url" content="{{STORE_URL}}" />
-  <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="{{STORE_TITLE}}" />
+  {{STORE_TWITTER_CARD}}
+  <meta name="twitter:title" content="{{PAGE_TITLE}}" />
   <meta name="twitter:description" content="{{STORE_DESCRIPTION}}" />
   <meta name="twitter:image" content="{{STORE_OG_IMAGE}}" />
 
   <link rel="icon" href="{{STORE_LOGO}}" />
+  {{STORE_CANONICAL_TAG}}
+  {{STORE_JSONLD}}
   {{STORE_FONT_LINK}}
   <link rel="stylesheet" href="/css/styles.css" />
   <style>
@@ -24,6 +26,9 @@
       --color-primario: {{STORE_COLOR_PRIMARIO}};
       --color-acento: {{STORE_COLOR_ACENTO}};
       --header-gradiente: {{STORE_HEADER_GRADIENTE}};
+      --texto-sobre-primario: {{STORE_TEXTO_SOBRE_PRIMARIO}};
+      --texto-sobre-acento: {{STORE_TEXTO_SOBRE_ACENTO}};
+      --texto-sobre-header: {{STORE_TEXTO_SOBRE_HEADER}};
       --fuente-titulo: {{STORE_FUENTE_TITULO}};
       --fuente-cuerpo: {{STORE_FUENTE_CUERPO}};
     }
@@ -32,16 +37,15 @@
 <body>
   <a href="#contenido-principal" class="skip-link">Saltar al contenido</a>
 
+  <div id="anuncioBanner" class="anuncio-banner" role="status"></div>
+
   <header>
-    <div class="header-main">
-      <img data-store="logo" class="logo-round" src="{{STORE_LOGO}}" alt="{{STORE_TITLE}}" />
-      <div>
-        <div class="store-name" data-store="nombre">{{STORE_TITLE}}</div>
-        <div class="slogan" data-store="slogan"></div>
-      </div>
-      <span id="exchangeRateDisplay" class="exchange-rate" aria-live="polite">Tasa: --</span>
+    <img data-store="logo" class="logo-round" src="{{STORE_LOGO}}" alt="{{STORE_TITLE}}" />
+    <div>
+      <h1 class="store-name" data-store="nombre">{{STORE_TITLE}}</h1>
+      <div class="slogan" data-store="slogan"></div>
     </div>
-    <div class="header-promo" data-store="header-promo" aria-live="polite" style="display:none;"></div>
+    <span id="exchangeRateDisplay" class="exchange-rate" aria-live="polite">Tasa: --</span>
   </header>
 
   <form class="search-panel" role="search" onsubmit="event.preventDefault(); StoreApp.submitSearch();">
@@ -56,7 +60,7 @@
   <nav id="categoryButtons" aria-label="Categorías de productos"></nav>
 
   <main id="contenido-principal">
-    <div id="productGrid" aria-live="polite"></div>
+    <div id="productGrid" aria-live="polite">{{STORE_PRODUCT_GRID}}</div>
   </main>
 
   <button class="cart-float" onclick="StoreApp.openCart()" aria-label="Ver carrito de compras">
@@ -64,25 +68,16 @@
   </button>
 
   <footer>
-    <div class="footer-main">
-      <section class="footer-brand" aria-label="Información de la tienda">
-        <h4 data-store="nombre"></h4>
-        <p data-store="slogan"></p>
-      </section>
-      <section class="footer-contact" aria-label="Contacto y ubicación">
-        <h4>Contacto y ubicación</h4>
-        <p class="footer-address"><span class="footer-label">Dirección</span><span data-store="direccion"></span></p>
-        <p class="footer-phone" data-phone="primary"><span class="footer-label">Teléfono</span><a data-store="phone-link" href="#"><span data-store="phone"></span></a></p>
-        <p class="footer-phone" data-phone="secondary"><span class="footer-label">Teléfono 2</span><a data-store="phone2-link" href="#"><span data-store="phone2"></span></a></p>
-        <div class="footer-links">
-          <a data-store="whatsapp-link" href="#" target="_blank" rel="noopener noreferrer">Escribir por WhatsApp</a>
-          <a data-store="email" href="#"></a>
-          <a data-store="facebook" href="#" target="_blank" rel="noopener noreferrer">Facebook</a>
-        </div>
-        <p data-store="horario"></p>
-      </section>
-    </div>
-    <p class="footer-copyright">© <span data-store="anio"></span> <span data-store="nombre"></span> — Todos los derechos reservados.</p>
+    <h4 data-store="nombre"></h4>
+    <p data-store="slogan"></p>
+    <p>
+      <a data-store="whatsapp-link" href="#" target="_blank">WhatsApp</a> ·
+      <a data-store="email" href="#"></a> ·
+      <a data-store="facebook" href="#" target="_blank">Facebook</a>
+    </p>
+    <p data-store="direccion"></p>
+    <p data-store="horario"></p>
+    <p>© <span data-store="anio"></span> <span data-store="nombre"></span> — Todos los derechos reservados.</p>
   </footer>
 
   <script src="/js/store-app.js"></script>
@@ -103,8 +98,26 @@
       renderProductos(filtrados);
     }
 
+    // El servidor ya escribió los primeros productos en el HTML. Aquí solo se
+    // completa lo que falta y se quita lo que ya no esté disponible, SIN
+    // volver a dibujar lo que ya está (evita parpadeos).
+    function sincronizarGrid() {
+      const grid = document.getElementById('productGrid');
+      const vigentes = new Set(productosCache.map((p) => String(p.id)));
+      grid.querySelectorAll('.product-card[data-id]').forEach((el) => {
+        if (!vigentes.has(el.dataset.id)) el.remove();
+      });
+      const presentes = new Set([...grid.querySelectorAll('.product-card[data-id]')].map((el) => el.dataset.id));
+      const faltantes = productosCache.filter((p) => !presentes.has(String(p.id)));
+      if (faltantes.length) {
+        grid.insertAdjacentHTML('beforeend', faltantes.map((p) => StoreApp.renderProductCard(p)).join(''));
+      }
+    }
+
     (async function start() {
-      document.getElementById('productGrid').innerHTML = StoreApp.renderSkeletons();
+      const gridInicial = document.getElementById('productGrid');
+      const traeProductosDelServidor = Boolean(gridInicial.querySelector('.product-card'));
+      if (!traeProductosDelServidor) gridInicial.innerHTML = StoreApp.renderSkeletons();
 
       const config = await StoreApp.initStore();
 
@@ -124,7 +137,7 @@
       });
 
       productosCache = await fetch('/api/products').then((r) => r.json());
-      aplicarFiltro();
+      if (traeProductosDelServidor) sincronizarGrid(); else aplicarFiltro();
       StoreApp.attachSpotlight('#productGrid');
 
       StoreApp.setupAutocomplete(

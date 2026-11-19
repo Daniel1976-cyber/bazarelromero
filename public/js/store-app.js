@@ -33,6 +33,13 @@ function applyBranding(config) {
     '--header-gradiente',
     config.colores.headerGradiente || config.colores.primario
   );
+  // Color del texto sobre cada fondo (lo calcula el servidor: store.config.js)
+  const textos = { 'texto-sobre-primario': config.colores.textoSobrePrimario,
+                   'texto-sobre-acento': config.colores.textoSobreAcento,
+                   'texto-sobre-header': config.colores.textoSobreHeader };
+  Object.entries(textos).forEach(([nombre, valor]) => {
+    if (valor) document.documentElement.style.setProperty(`--${nombre}`, valor);
+  });
 
   // Tipografías del tema (opcional). Si la tienda eligió un tema con
   // fuentes de Google Fonts, se inyecta el link una sola vez.
@@ -48,56 +55,19 @@ function applyBranding(config) {
 
   document.querySelectorAll('[data-store="nombre"]').forEach((el) => (el.textContent = config.nombre));
   document.querySelectorAll('[data-store="slogan"]').forEach((el) => (el.textContent = config.slogan));
-
-  const promoText = (config?.headerPromo || '').trim();
-  document.querySelectorAll('[data-store="header-promo"]').forEach((el) => {
-    if (!promoText) {
-      el.textContent = '';
-      el.style.display = 'none';
-      return;
-    }
-    el.textContent = promoText;
-    el.style.display = 'block';
-  });
-
   document.querySelectorAll('[data-store="logo"]').forEach((el) => (el.src = config.logo));
   document.querySelectorAll('[data-store="email"]').forEach((el) => {
-    if (config.email) {
-      el.textContent = config.email;
-      el.href = `mailto:${config.email}`;
-    } else {
-      el.style.display = 'none';
-    }
+    el.textContent = config.email;
+    el.href = `mailto:${config.email}`;
   });
   document.querySelectorAll('[data-store="whatsapp-link"]').forEach((el) => {
-    if (config.whatsapp) el.href = `https://wa.me/${config.whatsapp}`;
-    else el.style.display = 'none';
-  });
-  document.querySelectorAll('[data-store="phone-link"]').forEach((el) => {
-    if (config.whatsapp) el.href = `tel:+${config.whatsapp}`;
-    else el.style.display = 'none';
-  });
-  document.querySelectorAll('.footer-phone[data-phone="primary"]').forEach((el) => {
-    if (!config.whatsapp) el.style.display = 'none';
-  });
-  document.querySelectorAll('[data-store="phone"]').forEach((el) => {
-    el.textContent = config.whatsapp ? `+${config.whatsapp}` : '';
-  });
-  document.querySelectorAll('[data-store="phone2-link"]').forEach((el) => {
-    if (config.telefono2) el.href = `tel:+${config.telefono2}`;
-    else el.style.display = 'none';
-  });
-  document.querySelectorAll('.footer-phone[data-phone="secondary"]').forEach((el) => {
-    if (!config.telefono2) el.style.display = 'none';
-  });
-  document.querySelectorAll('[data-store="phone2"]').forEach((el) => {
-    el.textContent = config.telefono2 ? `+${config.telefono2}` : '';
+    el.href = `https://wa.me/${config.whatsapp}`;
   });
   document.querySelectorAll('[data-store="facebook"]').forEach((el) => {
     if (config.facebook) el.href = config.facebook;
     else el.style.display = 'none';
   });
-  document.querySelectorAll('[data-store="direccion"]').forEach((el) => (el.textContent = config.direccion || 'Calle 23 #145, entre 10 y 12, Centro'));
+  document.querySelectorAll('[data-store="direccion"]').forEach((el) => (el.textContent = config.direccion || ''));
   document.querySelectorAll('[data-store="horario"]').forEach((el) => (el.textContent = config.horario || ''));
   document.querySelectorAll('[data-store="anio"]').forEach((el) => (el.textContent = new Date().getFullYear()));
 
@@ -112,6 +82,21 @@ function applyBranding(config) {
   }
 
   renderCategoryButtons(config.categorias);
+  renderAnuncio(config);
+}
+
+// Cintillo promocional: se muestra solo si el admin lo activó y hay mensaje.
+// Usa textContent (no innerHTML) — el texto lo escribe un admin, nunca se
+// interpreta como HTML.
+function renderAnuncio(config) {
+  const banner = document.getElementById('anuncioBanner');
+  if (!banner) return;
+  if (config.anuncio && config.anuncio.activo && config.anuncio.mensaje) {
+    banner.textContent = config.anuncio.mensaje;
+    banner.style.display = 'block';
+  } else {
+    banner.style.display = 'none';
+  }
 }
 
 function renderCategoryButtons(categorias) {
@@ -342,7 +327,7 @@ function escapeHtml(valor) {
 // simple (ej. un nombre de producto con apóstrofe), rompería el atributo
 // HTML antes de que el navegador llegue a interpretarlo como JS.
 function jsonParaAtributo(obj) {
-  return JSON.stringify(obj).replace(/'/g, '&#39;');
+  return JSON.stringify(obj).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;');
 }
 
 function formatMoney(value) {
@@ -371,15 +356,18 @@ function formatTotal(totalUsd, totalCup) {
 }
 
 // ─── Tarjeta de producto (usada por index.html y search.html) ────────────
+// OJO: el servidor genera este mismo HTML (renderTarjetaProducto en
+// api/index.js) para la primera carga. Si cambias uno, cambia el otro.
 function renderProductCard(p) {
   const nombreSeguro = escapeHtml(p.nombre);
+  const href = `/search.html?id=${encodeURIComponent(p.id)}`;
   return `
-    <div class="product-card">
+    <div class="product-card" data-id="${escapeHtml(p.id)}">
       <div class="img-wrap">
-        <img src="${p.img}" alt="${nombreSeguro}" loading="lazy" />
+        <a href="${href}" tabindex="-1" aria-hidden="true"><img src="${escapeHtml(p.img)}" alt="${nombreSeguro}" loading="lazy" /></a>
       </div>
       <div class="body">
-        <div>${nombreSeguro}</div>
+        <a class="card-nombre" href="${href}">${nombreSeguro}</a>
         <div class="price">${formatPrecio(p.precio_usd, p.precio_cup)}</div>
         <button onclick='StoreApp.addToCart(${jsonParaAtributo(p)})' aria-label="Agregar ${nombreSeguro} al carrito">Agregar</button>
       </div>
@@ -394,6 +382,7 @@ function renderProductCard(p) {
 // Se llama solo en la página de detalle (no en la grilla de catálogo).
 function inyectarSchemaProducto(producto) {
   const anterior = document.getElementById('productSchema');
+  if (anterior && anterior.dataset.ssr) return; // el servidor ya lo escribió en el HTML
   if (anterior) anterior.remove();
 
   const precio = producto.precio_usd ?? producto.precio_cup;
@@ -566,4 +555,5 @@ window.StoreApp = {
   inyectarSchemaProducto,
   escapeHtml,
   jsonParaAtributo,
+  renderAnuncio,
 };

@@ -85,3 +85,56 @@ llega a procesarlos. Sigue editándose el archivo igual que siempre —
 `_index.html` para la página principal, etc. — solo cambia el nombre, no
 el contenido ni cómo se edita.
 
+
+## SEO (qué hace la plantilla por ti)
+
+- **Título y descripción propios** para Google: variables opcionales
+  `STORE_SEO_TITLE` y `STORE_SEO_DESCRIPTION`. Si las dejas vacías se arman
+  con el nombre y el eslogan. Escribe qué vendes y dónde, en 120-160 caracteres.
+- **Cada producto tiene su propia vista previa**: al compartir
+  `/search.html?id=12` por WhatsApp o Facebook sale la foto y el nombre de ese
+  producto, no el logo de la tienda. Los productos ocultos nunca se muestran.
+- **`/sitemap.xml`** (home + todos los productos visibles) y **`/robots.txt`**
+  se generan solos. Después de desplegar, da de alta la tienda en
+  [Google Search Console](https://search.google.com/search-console) y envía
+  el sitemap.
+- Una ficha con `?id=` inexistente o de un producto oculto lleva `noindex`.
+- Encabezados correctos: el nombre de la tienda es el `<h1>` de la home y el
+  nombre del producto es el `<h1>` de su ficha.
+
+### SEO fase 2: contenido que el buscador ya ve sin ejecutar JavaScript
+
+- **La home viene con los productos escritos en el HTML** (los primeros 48,
+  constante `PRODUCTOS_SSR_MAX` en `api/index.js`). El navegador completa el
+  resto y quita lo que ya no esté disponible, sin redibujar lo que ya se ve.
+  Si el servidor arranca en frío y Supabase tarda más de ~1.5 s, la home se
+  entrega igual sin la grilla (el JS la completa) en vez de dejar la pantalla
+  en blanco.
+- **Cada producto es un enlace real** (foto y nombre llevan a su ficha), y la
+  ficha trae escritos en el HTML su nombre, precio, descripción y hasta 10
+  productos similares.
+- **`<link rel="canonical">`** en la home y en cada ficha (también cuando se
+  entra por `/index.html`). Las búsquedas de texto no llevan canonical.
+- **Datos estructurados (JSON-LD) desde el servidor**: la home publica
+  `WebSite` y la tienda (`Store` si configuraste `STORE_ADDRESS`, si no
+  `Organization`, con teléfono de WhatsApp y Facebook si los tienes); cada
+  ficha publica un `Product` con precio y disponibilidad.
+
+**Si modificas el diseño de una tarjeta de producto**, cambia los DOS sitios
+donde se genera, o la página parpadeará al cargar: `renderProductCard` en
+`public/js/store-app.js` (navegador) y `renderTarjetaProducto` en
+`api/index.js` (servidor). Lo mismo con la ficha (`renderDetalleProducto`).
+
+### Imagen para compartir el enlace (opcional)
+
+`STORE_SOCIAL_IMAGE` es la imagen que aparece en la vista previa cuando alguien
+comparte la tienda por WhatsApp o Facebook. Si la dejas vacía se usa el logo.
+
+- Ponla dentro de `public/` (ej. `public/social.jpg`) y escribe `social.jpg`,
+  o usa una URL completa.
+- **1200 × 630 px**, JPG o PNG (mejor que WebP), menos de 300 KB, con el logo y
+  el nombre en el centro (algunas plataformas recortan los bordes).
+- Con esta imagen la tarjeta se muestra grande. Las fichas de producto siguen
+  usando la foto del producto; si un producto no tiene foto, usa esta imagen.
+- WhatsApp y Facebook guardan las vistas previas: si cambias la imagen, los
+  enlaces ya compartidos pueden seguir mostrando la anterior un tiempo.
